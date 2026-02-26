@@ -1,0 +1,7 @@
+# Exclude large binary/JSON files from MinerU parsing
+images/
+*.json
+*_origin.pdf
+layout.json
+block_list.json
+content_list_v2.json

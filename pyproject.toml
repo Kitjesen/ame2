@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "ame2"
+version = "0.1.0"
+description = "AME-2: Agile and Generalized Legged Locomotion via Attention-Based Neural Map Encoding"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.10"
+keywords = ["robotics", "reinforcement-learning", "legged-locomotion", "neural-map"]
+
+dependencies = [
+    "torch>=2.0",
+    "tensordict>=0.3",
+]
+
+# Isaac Lab / robot_lab are not listed as pip-installable dependencies because
+# they require the NVIDIA Isaac Sim installer.  Install them separately:
+#   https://isaac-sim.github.io/IsaacLab/
+#   pip install -e source/robot_lab   (from the robot_lab repo)
+
+[project.optional-dependencies]
+dev = ["pytest", "matplotlib", "numpy"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ame2*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.yaml", "*.json"]
