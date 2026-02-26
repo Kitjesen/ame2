@@ -7,7 +7,7 @@ Run:  python -m pytest test_ame2.py -v
 import pytest
 import torch
 
-from ame2_model import (
+from ame2.networks.ame2_model import (
     MappingConfig, PolicyConfig,
     MappingNet, WTAMapFusion,
     AME2Encoder, LSIO,
@@ -96,7 +96,14 @@ class TestWTAMapFusion:
             f"Shape changed from {shape_before} to {self.wta.global_elev.shape}"
 
     def test_wta_correctness(self):
-        """Low-variance observation must overwrite high-variance observation at the same cell."""
+        """Probabilistic WTA (Eq.6-8): lower-variance observation wins with p_win ≈ 2/3.
+
+        With sigma2_prior=exp(2)≈7.4 and sigma2_new=exp(-2)≈0.14:
+          sigma2_eff = max(sigma2_new, 0.5*sigma2_prior) = 3.69  (Eq.6 lower bound)
+          p_win = prec_eff/(prec_eff+prec_prior) ≈ 0.667         (Eq.7)
+        So ~67% of cells are overwritten — not all (stochastic, not deterministic).
+        """
+        torch.manual_seed(0)
         wta = WTAMapFusion(1)  # single batch
         wta.reset()
         poses = torch.zeros(1, 3)
@@ -106,23 +113,25 @@ class TestWTAMapFusion:
         lv1 = torch.full((1, 1, 31, 51), 2.0)
         wta.update(elev1, lv1, poses)
 
-        # Pick a cell that gets written (center of the local grid)
-        # After update, some global cells should have elev = 10.0
         mask = wta.global_var[0, 0] < WTAMapFusion.INF_VAR
-        assert mask.any(), "No cells were updated"
-        written_elev = wta.global_elev[0, 0][mask]
-        assert torch.allclose(written_elev, torch.tensor(10.0), atol=1e-4), \
+        assert mask.any(), "No cells were updated on first pass"
+        assert torch.allclose(wta.global_elev[0, 0][mask], torch.tensor(10.0), atol=1e-4), \
             "First update elevation incorrect"
 
-        # Second update: lower variance (log_var = -2.0 → var ~ 0.14) with different elev
+        # Second update: lower variance (log_var = -2.0 → var ~ 0.14)
+        # Eq.6 lower-bound clips sigma2_eff to 0.5*sigma2_prior → p_win ≈ 0.667
         elev2 = torch.full((1, 1, 31, 51), 5.0)
         lv2 = torch.full((1, 1, 31, 51), -2.0)
         wta.update(elev2, lv2, poses)
 
-        # The low-var observation should have overwritten
-        written_elev2 = wta.global_elev[0, 0][mask]
-        assert torch.allclose(written_elev2, torch.tensor(5.0), atol=1e-4), \
-            "Low-variance observation did not overwrite high-variance"
+        # Probabilistic WTA: expect ~67% cells updated (accept 45%–95% range)
+        written = wta.global_elev[0, 0][mask]
+        frac_updated = (written - 5.0).abs() < 1e-4
+        frac = frac_updated.float().mean().item()
+        assert frac > 0.45, \
+            f"Too few cells updated with lower-var obs: {frac:.2f} < 0.45 (expected ~0.67)"
+        assert frac < 0.99, \
+            f"All cells updated — probabilistic WTA should be stochastic, got {frac:.2f}"
 
     def test_crop_shape(self):
         """crop() must return (B, 4, policy_h, policy_w)."""
@@ -220,7 +229,8 @@ class TestAsymmetricCritic:
         self.cfg = PolicyConfig()
         self.critic = AsymmetricCritic(self.cfg)
         self.map_feat = torch.randn(B, self.cfg.d_map_teacher, self.cfg.map_h, self.cfg.map_w)
-        self.prop = torch.randn(B, self.cfg.d_prop_raw)
+        # Critic uses 50D critic_prop (base_vel+hist+critic_cmd), not 48D actor prop
+        self.prop = torch.randn(B, self.cfg.d_prop_critic)
         self.contact = torch.randn(B, 4)
 
     def test_value_shape(self):
