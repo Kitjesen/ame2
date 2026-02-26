@@ -8,8 +8,17 @@ Components:
     HeightFieldGenerator  - Procedural terrain generation
     DepthScanSimulator    - Noisy depth scan simulation
     MappingTrainer        - Training loop with beta-NLL + TV weighting
+
+Usage:
+    # Default (100 steps, saves to logs/mapping_net.pt):
+    python scripts/train_mapping.py
+
+    # Production run:
+    python scripts/train_mapping.py --num_steps 50000 --batch_size 64 \
+        --save_path logs/mapping_net.pt
 """
 
+import argparse
 import os
 import torch
 import torch.nn as nn
@@ -199,28 +208,45 @@ class MappingTrainer:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    output_dir = "outputs/mapping"
-    os.makedirs(output_dir, exist_ok=True)
+    parser = argparse.ArgumentParser(description="MappingNet pretraining (Phase 0)")
+    parser.add_argument("--num_steps", type=int, default=100,
+                        help="Number of gradient steps (paper: ~50 000 for convergence)")
+    parser.add_argument("--batch_size", type=int, default=32,
+                        help="Batch size per step")
+    parser.add_argument("--lr", type=float, default=1e-3,
+                        help="Adam learning rate")
+    parser.add_argument("--save_path", type=str, default="logs/mapping_net.pt",
+                        help="Where to save the trained MappingNet weights")
+    parser.add_argument("--output_dir", type=str, default="outputs/mapping",
+                        help="Directory for visualisation outputs")
+    parser.add_argument("--vis_interval", type=int, default=20,
+                        help="Save visualisation every N steps (0 = disabled)")
+    args = parser.parse_args()
+
+    os.makedirs(args.output_dir, exist_ok=True)
+    os.makedirs(os.path.dirname(args.save_path) or ".", exist_ok=True)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
-
-    trainer = MappingTrainer(device=device, lr=1e-3)
-
-    n_steps = 100
-    vis_interval = 20
-
-    print(f"Training MappingNet for {n_steps} steps (batch_size=32)...")
+    print(f"Training MappingNet for {args.num_steps} steps "
+          f"(batch_size={args.batch_size}, lr={args.lr})...")
+    print(f"Checkpoint will be saved to: {args.save_path}")
     print("-" * 50)
 
-    for step in range(1, n_steps + 1):
-        loss = trainer.train_step(B=32)
-        if step % 10 == 0 or step == 1:
-            print(f"Step {step:4d}/{n_steps}  loss={loss:.5f}")
-        if step % vis_interval == 0:
-            trainer.visualize(step, output_dir)
+    trainer = MappingTrainer(device=device, lr=args.lr)
+
+    for step in range(1, args.num_steps + 1):
+        loss = trainer.train_step(B=args.batch_size)
+        if step % max(1, args.num_steps // 10) == 0 or step == 1:
+            print(f"Step {step:6d}/{args.num_steps}  loss={loss:.5f}")
+        if args.vis_interval > 0 and step % args.vis_interval == 0:
+            trainer.visualize(step, args.output_dir)
 
     print("-" * 50)
     print("Training complete.")
-    trainer.plot_loss(output_dir)
-    print(f"Outputs saved to: {output_dir}")
+    trainer.plot_loss(args.output_dir)
+
+    # Save trained weights — consumed by Phase 1 / 2 via --mapping_ckpt
+    torch.save(trainer.model.state_dict(), args.save_path)
+    print(f"Model weights saved to: {args.save_path}")
+    print(f"Visualisations saved to: {args.output_dir}")

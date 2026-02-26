@@ -134,7 +134,7 @@ ax.text(FIG_W/2, FIG_H-0.80,
 # BAND 1 – MAPPING PIPELINE   y = 10.3 – 11.8
 # ═════════════════════════════════════════════════════════════════════════════
 Y1 = 10.95
-bg_box(ax, 0.3, 10.25, 18.8, 11.85, C_MAP, "  Mapping Pipeline")
+bg_box(ax, 0.3, 10.25, 18.8, 11.85, C_MAP, "  Mapping Pipeline  (Sec. V)")
 
 rbox(ax,  1.6, Y1, 2.0, 0.78, C_MAP, "Depth Cloud",
      "31×51 cells @ 4 cm", bold=True)
@@ -173,7 +173,7 @@ note(ax, 20.0, Y1-0.18, "Pretrain\n(no Isaac Sim)", color=C_MAP, fs=7)
 #                                              ↑
 #                               global_feat (via fork from RowA→RowB vertical line)
 # ═════════════════════════════════════════════════════════════════════════════
-bg_box(ax, 0.3, 6.75, 18.8, 10.10, C_ENC, "  AME-2 Encoder  (Sec.IV-A, Fig.3)")
+bg_box(ax, 0.3, 6.75, 18.8, 10.10, C_ENC, "  AME-2 Encoder  (Sec. IV-A, Fig. 3)")
 
 EY_A = 9.52   # encoder Row A  (local + global path)
 EY_B = 8.38   # encoder Row B  (MHA + Query Proj)
@@ -287,7 +287,7 @@ ax.text(XL1-0.15, (10.25+MAP_BUS_Y)/2, "map\n4ch",
 Y3   = 5.55
 Y3B  = 6.60   # band top
 Y3T  = 4.55   # band bottom
-bg_box(ax, 0.3, Y3T, 18.8, Y3B, C_PRO, "  Proprioception Encoder")
+bg_box(ax, 0.3, Y3T, 18.8, Y3B, C_PRO, "  Proprioception Encoder  (Sec. IV-A)")
 
 BH3 = 0.80
 
@@ -323,7 +323,7 @@ note(ax, 1.8, Y3T+0.20,
 Y4   = 3.60
 Y4B  = 4.40   # band top
 Y4T  = 2.80   # band bottom
-bg_box(ax, 0.3, Y4T, 18.8, Y4B, C_DEC, "  Decoder")
+bg_box(ax, 0.3, Y4T, 18.8, Y4B, C_DEC, "  Decoder  (Sec. IV-A)")
 
 BH4 = 0.76
 
@@ -366,7 +366,7 @@ note(ax, 20.0, Y4-0.52, "Student  40k iter", color=C_DEC, fs=7)
 # ═════════════════════════════════════════════════════════════════════════════
 Y5   = 1.75
 bg_box(ax, 0.3, 0.85, 18.8, 2.65, C_CRIT,
-       "  Asymmetric Critic  (training only — same design for Teacher & Student)")
+       "  Asymmetric Critic  (Sec. IV-B · training only · Teacher = Student architecture)")
 
 BH5 = 0.68
 

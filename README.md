@@ -97,9 +97,9 @@ pytest scripts/test_ame2.py -v
 
 ```bash
 python scripts/train_ame2.py --phase 0
-# Saves: logs/mapping_net.pt  (~1 hr on GPU)
-# Or use the dedicated script:
-python scripts/train_mapping.py
+# Saves: logs/mapping_net.pt  (~1 hr on GPU, 50k steps recommended)
+# Or use the dedicated script with full control:
+python scripts/train_mapping.py --num_steps 50000 --batch_size 64
 ```
 
 ### 4. Phase 1 — Teacher PPO (needs Isaac Sim)
@@ -114,10 +114,18 @@ python scripts/train_ame2.py --phase 1 --num_envs 4800 \
 
 ```bash
 python scripts/train_ame2.py --phase 2 \
-    --teacher_ckpt logs/ame2_teacher_<timestamp>/model_80000.pt \
-    --mapping_ckpt logs/mapping_net.pt
+    --teacher_ckpt logs/ame2_teacher_<timestamp>/model_80000.pt
 # 40 000 iterations (5k pure distillation + 35k PPO)
 ```
+
+### 6. One-command full pipeline
+
+```bash
+bash scripts/train_all.sh                      # full scale (8× RTX-4090)
+bash scripts/train_all.sh --num_envs 512       # single-GPU debug
+```
+
+> **Full parameter guide:** [docs/training_walkthrough.md](docs/training_walkthrough.md)
 
 ---
 
@@ -212,7 +220,7 @@ without Isaac Sim — only `ame2.ame2_env_cfg` and `ame2.__init__` require it.
 | ⚠️ Unverified | `UniformPose2dCommandCfg(simple_heading=False)` 4D output format |
 | ⚠️ Inferred | `SCAN_NOISE_STD_MAX = 0.05` m — paper states linear increase but not the max value |
 | ⚠️ Unverified | post-hoc `runner.alg.actor_critic` replacement with current RSL-RL version |
-| ⚠️ Minor diff | Terrain curriculum: code uses `d_xy < 0.5m` threshold; paper uses EMA success rate > 0.5 with 4m demote threshold |
+| ✅ Fixed | Terrain curriculum: EMA success rate (α=0.1) with promote>0.5 / demote≤0.5&d>4m (matches paper Sec. IV-D.3) |
 | ✅ Confirmed | WTA Eq.6–8 probabilistic (p_win ≈ 0.67, not deterministic) |
 | ✅ Confirmed | All 19 unit tests pass without Isaac Sim |
 | ✅ Confirmed | Phase 0 MappingNet pretraining converges on CUDA (β-NLL ↓) |

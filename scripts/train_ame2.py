@@ -74,8 +74,14 @@ if args.phase == 0:
     print("Phase 0: MappingNet Pretraining")
     print("=" * 60)
     import subprocess
+    os.makedirs(args.log_dir, exist_ok=True)
+    save_path = os.path.join(args.log_dir, "mapping_net.pt")
     script = os.path.join(os.path.dirname(__file__), "train_mapping.py")
-    subprocess.run([sys.executable, script], check=True)
+    subprocess.run(
+        [sys.executable, script, "--save_path", save_path],
+        check=True,
+    )
+    print(f"[Phase 0] MappingNet saved to: {save_path}")
     sys.exit(0)
 
 
