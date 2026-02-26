@@ -42,36 +42,11 @@ paper/
 
 ## Architecture Overview
 
-```
-                        ┌──────────────────────────────────────────────────────┐
-                        │                  AME-2 Policy                        │
-                        │                                                      │
-  Depth cloud (31×51)   │  MappingNet(U-Net, 9475 params)                     │
-  ─────────────────────►│    └─► local elev + log_var                         │
-                        │                                                      │
-                        │  WTAMapFusion (Probabilistic WTA, Eq.6–8)           │
-                        │    └─► global 400×400 @ 8cm ──► crop 14×36 @ 8cm   │
-                        │              (elev, nx, ny, var)                     │
-                        │                                        ↓             │
-  Proprioception (42D)  │  Student: LSIO(T=20) + cmd(3D)                     │
-  + history (T=20)      │    └─────────────────────────────► prop_emb (128D)  │
-                        │                                        ↓             │
-                        │  AME2Encoder (CNN + MHA, Fig.3)                     │
-                        │    local features (CNN+PosEmb) ─────► K,V           │
-                        │    global features (MLP+MaxPool) ──► Query via MLP  │
-                        │    └─► Weighted local + global ─────► map_emb (192D)│
-                        │                                        ↓             │
-                        │  Decoder MLP(512→256→12)                            │
-                        │    └──────────────────────────────► joint targets   │
-                        └──────────────────────────────────────────────────────┘
+![AME-2 Architecture](docs/architecture.png)
 
-Teacher uses: GT map (x,y,z, 3ch) + full prop (48D) incl. base_lin_vel
-Student uses: Neural map (elev,nx,ny,var, 4ch) + history (no base_lin_vel)
+> Regenerate with: `python scripts/draw_architecture.py`
 
-Asymmetric Critic (MoE, training only):
-  contact(4D) → gate → 4 expert MLPs → V(state)
-  L-R symmetry augmentation applied to critic only (Sec.IV-B)
-```
+**Color coding:** Blue = Perception/Mapping · Orange = Proprioception · Green = AME-2 Encoder · Purple = Decoder · Red = Critic (training only) · Dashed = Teacher-only path
 
 ---
 
