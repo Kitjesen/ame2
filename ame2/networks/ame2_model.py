@@ -749,8 +749,13 @@ class StudentPropEncoder(nn.Module):
         super().__init__()
         self.lsio = LSIO(cfg.d_hist, T=cfg.prop_history)
         # LSIO output (out_size=184) + commands (3) → proprioception embedding (128)
+        # Paper: "temporal embedding and commands … fed into an MLP" — MLP implies
+        # at least one hidden layer.  Match teacher's hidden dim (256) for consistency.
+        # BUG FIX: was a single Linear(187→128)+ELU (not a proper MLP).
         self.out_mlp = nn.Sequential(
-            nn.Linear(self.lsio.out_size + cfg.d_commands, cfg.d_prop_emb),
+            nn.Linear(self.lsio.out_size + cfg.d_commands, 256),
+            nn.ELU(inplace=True),
+            nn.Linear(256, cfg.d_prop_emb),
             nn.ELU(inplace=True),
         )
 

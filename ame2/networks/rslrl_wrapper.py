@@ -92,8 +92,18 @@ def _flip_lr(
     Returns:
         (map_f, prop_f, contact_f) — mirrored tensors, same device/dtype.
     """
-    # Map: horizontal flip (W = lateral axis in robot frame)
-    map_f = torch.flip(map_feat, dims=[-1])
+    # Map: lateral flip (H = y/lateral axis in robot frame)
+    # Coordinate convention (from WTAMapFusion):
+    #   dim -2 (H, rows)  → y (lateral)   e.g. policy_h=14 covers ±0.52 m
+    #   dim -1 (W, cols)  → x (forward)   e.g. policy_w=36 covers −0.8..2.0 m
+    # L-R mirror flips y → −y = flip rows (dim -2), NOT columns (dim -1).
+    # BUG FIX: was torch.flip(dims=[-1]) which flipped forward axis instead.
+    map_f = torch.flip(map_feat, dims=[-2])
+    # Surface normal y-component (channel 2: ny = −∂h/∂y) negates under y → −y
+    # because ∂h/∂(−y) = −∂h/∂y, so new_ny = −old_ny.
+    if map_f.shape[1] >= 3:
+        map_f = map_f.clone()          # detach from flip's storage
+        map_f[:, 2] = -map_f[:, 2]
 
     # Proprioception: negate lateral-sensitive dims, permute + sign-flip joints
     prop_f = prop.clone()
@@ -1460,9 +1470,11 @@ if __name__ == "__main__":
     assert torch.allclose(cont_ff, cont_t, atol=1e-6), "Contact double-flip failed"
     print("  double-flip identity: OK")
 
-    # Verify W dimension is flipped
-    assert torch.allclose(map_f, map_t.flip(-1)), "Map W-flip mismatch"
-    print("  map W-flip: OK")
+    # Verify H dimension (lateral/y axis) is flipped and ny channel negated
+    expected_map_f = map_t.flip(-2).clone()
+    expected_map_f[:, 2] = -expected_map_f[:, 2]   # ny negation
+    assert torch.allclose(map_f, expected_map_f), "Map lateral-flip mismatch"
+    print("  map H-flip (lateral): OK")
 
     # evaluate() output shape unchanged (B,1) despite internal augmentation
     v_aug = teacher_ac.evaluate(obs_td)
