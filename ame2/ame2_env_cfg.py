@@ -171,27 +171,53 @@ def gt_policy_map_flat(
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
     map_h: int = 14,
     map_w: int = 36,
+    policy_res: float = 0.08,
 ) -> "torch.Tensor":
     """Ground-truth policy map from policy-resolution RayCaster.
 
     Reads the world-frame hit positions from ``height_scanner_policy``
-    (14×36 @ 8 cm) and returns them as robot-relative (x, y, z) offsets.
-    Channel layout matches the teacher map used by AME2Encoder:
-        channels 0/1/2 = (x_rel, y_rel, z_rel) per grid point
+    (14×36 @ 8 cm) and returns elevation + surface normals in the
+    body-frame grid.
+
+    Channel layout matches the teacher map used by AME2Encoder and
+    corresponds to the first 3 channels of the student's WTA crop:
+        channel 0 = elevation  (z_hit − z_base)
+        channel 1 = normal_x   (−∂h/∂x, forward gradient)
+        channel 2 = normal_y   (−∂h/∂y, lateral gradient)
+
+    BUG FIX: Previously returned world-frame 3D position offsets
+    [x_world, y_world, z_world] instead of [elev, nx, ny].  This caused:
+      - Inconsistent channel semantics vs student WTA crop [elev, nx, ny, var]
+      - World-frame (x, y) varying with robot yaw (not body-frame invariant)
+      - Wrong channel negated under L-R symmetry augmentation (code negates
+        ch 2 = ny, but old ch 2 was z_offset which should NOT negate)
 
     Returns: (B, 3 * map_h * map_w) = (B, 1512) flat tensor.
     """
     import torch
+    import torch.nn.functional as F
+
     scanner = env.scene.sensors[scanner_cfg.name]
     asset = env.scene[asset_cfg.name]
 
-    hits_w = scanner.data.pos_w          # (B, H*W, 3)
+    hits_w = scanner.data.ray_hits_w     # (B, H*W, 3)
     base_pos = asset.data.root_pos_w     # (B, 3)
-
-    hits_rel = hits_w - base_pos.unsqueeze(1)  # (B, H*W, 3)
-
     B = hits_w.shape[0]
-    return hits_rel.permute(0, 2, 1).reshape(B, 3 * map_h * map_w)
+
+    # Channel 0: elevation = z_hit − z_base (height relative to robot)
+    elev = (hits_w[:, :, 2] - base_pos[:, 2:3])           # (B, H*W)
+    elev = elev.reshape(B, 1, map_h, map_w)                # (B, 1, H, W)
+
+    # Channels 1-2: surface normals via central differences
+    # Same computation as WTAMapFusion._surface_normals (ame2_model.py)
+    p = F.pad(elev, (1, 1, 1, 1), mode='replicate')       # (B, 1, H+2, W+2)
+    dhdx = (p[:, :, 1:-1, 2:] - p[:, :, 1:-1, :-2]) / (2.0 * policy_res)
+    dhdy = (p[:, :, 2:, 1:-1] - p[:, :, :-2, 1:-1]) / (2.0 * policy_res)
+    normals = torch.cat([-dhdx, -dhdy], dim=1)             # (B, 2, H, W)
+
+    # [elev, nx, ny] = 3 channels, matching student WTA crop[:, :3]
+    gt_map = torch.cat([elev, normals], dim=1)              # (B, 3, H, W)
+    return gt_map.reshape(B, 3 * map_h * map_w)
 
 
 # ============================================================================
@@ -302,8 +328,11 @@ def ame2_stagnation(
         state["pos"][update_mask]  = current_pos[update_mask].clone()
         state["step"][update_mask] = env.episode_length_buf[update_mask].clone()
 
-    # Stagnant: insufficient displacement from last checkpoint
-    stagnant = disp < min_displacement
+    # Stagnant: insufficient displacement from last checkpoint.
+    # FIX: Only check stagnation when the full observation window has elapsed.
+    # Without this gate, the check fires on the step immediately after a
+    # checkpoint refresh (when disp ≈ 0), causing premature termination.
+    stagnant = (disp < min_displacement) & window_elapsed
 
     # Far from goal: use body-frame goal distance from goal_pos command
     cmd          = env.command_manager.get_command("goal_pos")  # (B, 4)
@@ -326,7 +355,7 @@ class AME2AnymalEnvCfg(LocomotionVelocityRoughEnvCfg):
       - Height scanner: 31x51 grid @ 4cm resolution → feeds MappingNet    [stated]
       - policy obs (48D): base_vel(3)|ang_vel+grav+q+dq+act(42)|actor_cmd(3)  [stated]
       - teacher_privileged obs (1593D): height_scan(1581) + foot_contact(12)
-      - teacher_map obs (1512D): GT policy map 3×14×36 flat
+      - teacher_map obs (1512D): GT policy map [elev, nx, ny] 3×14×36 flat
       - Actor cmd 3D: [clip(d_xy,2m), sin(yaw_rel), cos(yaw_rel)]     [stated]
       - Critic uses same 48D prop as teacher actor (AsymmetricCritic)
       - 4 custom termination conditions (Sec IV-D.2)                   [stated]
@@ -351,9 +380,10 @@ class AME2AnymalEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.scene.robot = ANYMAL_D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
         # AME-2 height scanner: 31×51 @ 4cm resolution → feeds MappingNet  [inferred from MappingConfig.local_res=0.04]
+        # Center offset x=1.0m forward of base (stated: ANYmal-D local grid cx=1.0m)
         self.scene.height_scanner = RayCasterCfg(
             prim_path="{ENV_REGEX_NS}/Robot/" + self.base_link_name,
-            offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
+            offset=RayCasterCfg.OffsetCfg(pos=(1.0, 0.0, 20.0)),
             ray_alignment="yaw",
             pattern_cfg=patterns.GridPatternCfg(
                 resolution=0.04,
@@ -366,9 +396,10 @@ class AME2AnymalEnvCfg(LocomotionVelocityRoughEnvCfg):
 
         # GT policy map scanner: 14×36 @ 8 cm  [inferred]
         # Feeds the teacher's AME2Encoder — separate from the 31×51 MappingNet scanner.
+        # Center offset x=0.6m forward of base (stated: ANYmal-D policy grid cx=0.6m)
         self.scene.height_scanner_policy = RayCasterCfg(
             prim_path="{ENV_REGEX_NS}/Robot/" + self.base_link_name,
-            offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
+            offset=RayCasterCfg.OffsetCfg(pos=(0.6, 0.0, 20.0)),
             ray_alignment="yaw",
             pattern_cfg=patterns.GridPatternCfg(
                 resolution=0.08,
@@ -611,18 +642,18 @@ class AME2AnymalEnvCfg(LocomotionVelocityRoughEnvCfg):
             },
         )
 
-        # ── Regularization and Penalties (Table I) ─────────────────────────────
-        self.rewards.early_termination = RewTerm(  # -10 / dτ = -500   [stated]
+        # ── Regularization and Penalties (Table I, weight = paper_weight × dτ) ──
+        self.rewards.early_termination = RewTerm(  # (-10/dτ) × dτ = -10  [stated]
             func=early_termination,
-            weight=-500.0,
+            weight=-10.0,
             params={},
         )
-        self.rewards.undesired_events = RewTerm(   # -1  [stated]
+        self.rewards.undesired_events = RewTerm(   # -1 × 0.02 = -0.02  [stated]
             func=undesired_events,
-            weight=-1.0,
+            weight=-0.02,
             params={
                 "sensor_cfg": SceneEntityCfg(
-                    "contact_forces", body_names=[".*THIGH", ".*SHANK"]
+                    "contact_forces", body_names=["base", ".*THIGH", ".*SHANK"]
                 ),
                 "foot_sensor_cfg": SceneEntityCfg(
                     "contact_forces", body_names=[".*FOOT"]
@@ -630,49 +661,49 @@ class AME2AnymalEnvCfg(LocomotionVelocityRoughEnvCfg):
                 "asset_cfg": SceneEntityCfg("robot"),
             },
         )
-        self.rewards.base_roll_rate = RewTerm(     # -0.1  [stated]
+        self.rewards.base_roll_rate = RewTerm(     # -0.1 × 0.02 = -0.002  [stated]
             func=base_roll_rate,
-            weight=-0.1,
+            weight=-0.002,
             params={"asset_cfg": SceneEntityCfg("robot")},
         )
-        self.rewards.joint_regularization = RewTerm(  # -0.001  [stated]
+        self.rewards.joint_regularization = RewTerm(  # -0.001 × 0.02 = -0.00002 [stated]
             func=joint_regularization,
-            weight=-0.001,
+            weight=-0.00002,
             params={"asset_cfg": SceneEntityCfg("robot")},
         )
-        self.rewards.action_smoothness = RewTerm(  # -0.01  [stated]
+        self.rewards.action_smoothness = RewTerm(  # -0.01 × 0.02 = -0.0002  [stated]
             func=action_smoothness,
-            weight=-0.01,
+            weight=-0.0002,
             params={},
         )
-        self.rewards.link_contact_forces = RewTerm(  # -0.00001  [stated]
+        self.rewards.link_contact_forces = RewTerm(  # -0.00001 × 0.02 = -0.0000002 [stated]
             func=link_contact_forces,
-            weight=-0.00001,
+            weight=-0.0000002,
             params={
                 "sensor_cfg": SceneEntityCfg("contact_forces"),
                 "asset_cfg": SceneEntityCfg("robot"),
             },
         )
-        self.rewards.link_acceleration = RewTerm(  # -0.001  [stated]
+        self.rewards.link_acceleration = RewTerm(  # -0.001 × 0.02 = -0.00002 [stated]
             func=link_acceleration,
-            weight=-0.001,
+            weight=-0.00002,
             params={"asset_cfg": SceneEntityCfg("robot")},
         )
 
-        # ── Simulation Fidelity (Table I) ──────────────────────────────────────
-        self.rewards.ame2_joint_pos_limits = RewTerm(  # -1000  [stated]
+        # ── Simulation Fidelity (Table I, weight = paper_weight × dτ) ─────────
+        self.rewards.ame2_joint_pos_limits = RewTerm(  # -1000 × 0.02 = -20 [stated]
             func=joint_pos_limits,
-            weight=-1000.0,
+            weight=-20.0,
             params={"asset_cfg": SceneEntityCfg("robot")},
         )
-        self.rewards.ame2_joint_vel_limits = RewTerm(  # -1  [stated]
+        self.rewards.ame2_joint_vel_limits = RewTerm(  # -1 × 0.02 = -0.02  [stated]
             func=joint_vel_limits,
-            weight=-1.0,
+            weight=-0.02,
             params={"asset_cfg": SceneEntityCfg("robot")},
         )
-        self.rewards.ame2_joint_torque_limits = RewTerm(  # -1  [stated]
+        self.rewards.ame2_joint_torque_limits = RewTerm(  # -1 × 0.02 = -0.02 [stated]
             func=joint_torque_limits,
-            weight=-1.0,
+            weight=-0.02,
             params={"asset_cfg": SceneEntityCfg("robot")},
         )
 

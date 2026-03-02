@@ -27,6 +27,11 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
+# Binary contact detection threshold (Newtons).
+# A link is considered "in contact" when its net force magnitude exceeds this value.
+# Used across standing_at_goal and undesired_events reward terms.
+CONTACT_FORCE_THRESHOLD: float = 1.0
+
 # ============================================================================
 # Helpers
 # ============================================================================
@@ -88,19 +93,13 @@ def heading_tracking(
     Goal command: [x_b, y_b, z_b, heading_b] — heading_b is scalar radians.
     """
     d_xy, _ = _goal_xy_dist(env, asset_cfg, command_name)
-    asset = env.scene[asset_cfg.name]
     cmd = env.command_manager.get_command(command_name)
 
-    # Desired yaw: cmd[:, 3] = heading_b (scalar radians, body-frame)
-    desired_yaw = cmd[:, 3]
-    # Actual yaw from root quaternion
-    quat = asset.data.root_quat_w  # (N, 4) wxyz
-    actual_yaw = torch.atan2(
-        2.0 * (quat[:, 0] * quat[:, 3] + quat[:, 1] * quat[:, 2]),
-        1.0 - 2.0 * (quat[:, 2] ** 2 + quat[:, 3] ** 2),
-    )
-    # Wrap to [0, pi]
-    d_yaw = torch.abs(torch.atan2(torch.sin(desired_yaw - actual_yaw), torch.cos(desired_yaw - actual_yaw)))
+    # heading_b (cmd[:, 3]) from UniformPose2dCommandCfg is the RELATIVE heading
+    # error in the robot body frame.  When the robot faces the goal heading,
+    # heading_b == 0.  No world-frame yaw extraction is needed.
+    # FIX: previously compared body-frame heading_b with world-frame yaw — wrong.
+    d_yaw = torch.abs(cmd[:, 3])  # already the angular error, in [0, pi]
 
     return (1.0 / (1.0 + d_yaw ** 2)) * _t_mask(env, 2.0) * (d_xy < 0.5).float()
 
@@ -159,14 +158,10 @@ def standing_at_goal(
     asset: Articulation = env.scene[asset_cfg.name]
     cmd = env.command_manager.get_command(command_name)
 
-    # d_yaw: cmd[:, 3] = heading_b (scalar radians, body-frame)
-    desired_yaw = cmd[:, 3]
-    quat = asset.data.root_quat_w
-    actual_yaw = torch.atan2(
-        2.0 * (quat[:, 0] * quat[:, 3] + quat[:, 1] * quat[:, 2]),
-        1.0 - 2.0 * (quat[:, 2] ** 2 + quat[:, 3] ** 2),
-    )
-    d_yaw = torch.abs(torch.atan2(torch.sin(desired_yaw - actual_yaw), torch.cos(desired_yaw - actual_yaw)))
+    # heading_b (cmd[:, 3]) from UniformPose2dCommandCfg is the RELATIVE heading
+    # error in the robot body frame (0 when aligned with goal heading).
+    # FIX: previously compared body-frame heading_b with world-frame yaw — wrong.
+    d_yaw = torch.abs(cmd[:, 3])  # already the angular error, in [0, pi]
 
     # Gate: only active when close and aligned
     gate = ((d_xy < 0.5) & (d_yaw < 0.5)).float()
@@ -174,7 +169,7 @@ def standing_at_goal(
     # d_foot: fraction of feet not in contact
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
     foot_forces = contact_sensor.data.net_forces_w[:, sensor_cfg.body_ids, :]  # (N, num_feet, 3)
-    feet_in_contact = (torch.norm(foot_forces, dim=-1) > 1.0).float()  # (N, num_feet)
+    feet_in_contact = (torch.norm(foot_forces, dim=-1) > CONTACT_FORCE_THRESHOLD).float()  # (N, num_feet)
     num_feet = feet_in_contact.shape[1]
     d_foot = 1.0 - feet_in_contact.sum(dim=1) / num_feet
 
@@ -198,7 +193,7 @@ def early_termination(env: ManagerBasedRLEnv) -> torch.Tensor:
     """Early termination penalty.
 
     r = 1.0 if episode terminated early (not timeout).
-    Weight: -500.0 (= -10 / dτ = -10 / 0.02)
+    Weight (×dτ): -10  (= (-10/dτ) × dτ)
     """
     return env.termination_manager.terminated.float()
 
@@ -209,17 +204,19 @@ def undesired_events(
     foot_sensor_cfg: SceneEntityCfg = SceneEntityCfg("contact_forces"),
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
     elev_diff_threshold: float = 0.30,
+    self_collision_threshold: float = 0.05,
 ) -> torch.Tensor:
     """Undesired events penalty — 1.0 for each event triggered (Sec. IV-D.1).
 
-    Events (paper lists 6 types, all implemented):
+    Events (paper lists 7 types, all implemented):
       1. spinning: |omega_z| > 2.0 rad/s
       2. leaping: all feet off ground AND terrain elevation diff < 0.3 m  [stated]
       3. non_foot_contact: any non-foot link has contact force > threshold
       4. non_foot_contact_switch: non-foot link transitions from no-contact to contact
       5. stumbling: any link has horizontal contact force > vertical force
-      6. slippage: any foot moving while in contact
-    Weight: -1.0
+      6. slippage: any link moving while in contact
+      7. self_collision: collisions between robot links  [stated]
+    Weight (×dτ): -0.02  (= -1 × 0.02)
     """
     asset: Articulation = env.scene[asset_cfg.name]
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
@@ -233,7 +230,7 @@ def undesired_events(
     # 2. Leaping: all feet off ground on flat terrain (elev diff < threshold)
     #    Paper: "all feet are off the ground when the elevation difference is < 30 cm"
     foot_forces = contact_sensor.data.net_forces_w[:, foot_sensor_cfg.body_ids, :]
-    feet_in_contact = torch.norm(foot_forces, dim=-1) > 1.0  # (N, num_feet)
+    feet_in_contact = torch.norm(foot_forces, dim=-1) > CONTACT_FORCE_THRESHOLD  # (N, num_feet)
     all_feet_airborne = ~feet_in_contact.any(dim=1)  # (N,) True if NO foot is in contact
     # Estimate terrain flatness from height scanner if available, else use base height variance
     # Use a simple heuristic: check if height_scanner range is small
@@ -250,7 +247,7 @@ def undesired_events(
     # 3. Non-foot contact: any non-foot link has contact force > threshold
     non_foot_forces = contact_sensor.data.net_forces_w[:, sensor_cfg.body_ids, :]
     non_foot_contact_mag = torch.norm(non_foot_forces, dim=-1)  # (N, num_non_foot)
-    non_foot_in_contact = non_foot_contact_mag > 1.0
+    non_foot_in_contact = non_foot_contact_mag > CONTACT_FORCE_THRESHOLD
     non_foot_contact = torch.any(non_foot_in_contact, dim=1)
     penalty += non_foot_contact.float()
 
@@ -259,7 +256,7 @@ def undesired_events(
     #    to allow stable interactions while discouraging new unnecessary contacts.
     if hasattr(contact_sensor.data, 'net_forces_w_history') and contact_sensor.data.net_forces_w_history.shape[1] > 1:
         prev_non_foot_forces = contact_sensor.data.net_forces_w_history[:, 1, sensor_cfg.body_ids, :]
-        prev_non_foot_contact = torch.norm(prev_non_foot_forces, dim=-1) > 1.0
+        prev_non_foot_contact = torch.norm(prev_non_foot_forces, dim=-1) > CONTACT_FORCE_THRESHOLD
         contact_switch = torch.any(non_foot_in_contact & ~prev_non_foot_contact, dim=1)
         penalty += contact_switch.float()
 
@@ -267,15 +264,47 @@ def undesired_events(
     all_forces = contact_sensor.data.net_forces_w  # (N, num_bodies, 3)
     horiz_force = torch.norm(all_forces[:, :, :2], dim=-1)
     vert_force = torch.abs(all_forces[:, :, 2])
-    in_contact = torch.norm(all_forces, dim=-1) > 1.0
+    in_contact = torch.norm(all_forces, dim=-1) > CONTACT_FORCE_THRESHOLD
     stumbling = torch.any((horiz_force > vert_force) & in_contact, dim=1)
     penalty += stumbling.float()
 
-    # 6. Slippage: foot moving while in contact
-    foot_vel = asset.data.body_lin_vel_w[:, foot_sensor_cfg.body_ids, :]
-    foot_speed = torch.norm(foot_vel[:, :, :2], dim=-1)
-    slipping = torch.any((foot_speed > 0.1) & feet_in_contact, dim=1)
+    # 6. Slippage: any link moving while in contact  [stated Sec.IV-D.1]
+    # Paper says "any link moving while in contact", not just feet.
+    all_vel = asset.data.body_lin_vel_w                        # (N, num_bodies, 3)
+    all_speed = torch.norm(all_vel[:, :, :2], dim=-1)          # (N, num_bodies) xy speed
+    slipping = torch.any((all_speed > 0.1) & in_contact, dim=1)
     penalty += slipping.float()
+
+    # 7. Self-collision: collisions between robot links  [stated]
+    #    Proximity-based detection between non-adjacent limb links.
+    #    For full accuracy, use ContactSensor.force_matrix_w with
+    #    filter_prim_paths_expr targeting the robot's own links.
+    foot_pos = asset.data.body_pos_w[:, foot_sensor_cfg.body_ids, :]  # (N, num_feet, 3)
+    n_feet = foot_pos.shape[1]
+    if n_feet >= 2:
+        pair_diff = foot_pos.unsqueeze(2) - foot_pos.unsqueeze(1)  # (N, F, F, 3)
+        pair_dist = torch.norm(pair_diff, dim=-1)  # (N, F, F)
+        non_self = ~torch.eye(n_feet, dtype=torch.bool, device=penalty.device).unsqueeze(0)
+        penalty += ((pair_dist < self_collision_threshold) & non_self).any(dim=(1, 2)).float()
+    # Also check non-foot links (THIGH/SHANK) for cross-leg collisions
+    nf_pos = asset.data.body_pos_w[:, sensor_cfg.body_ids, :]  # (N, num_nf, 3)
+    n_nf = nf_pos.shape[1]
+    if n_nf >= 4:
+        # Each leg has 2 bodies (THIGH, SHANK); adjacent within same leg, so
+        # group by pairs and only check cross-leg distances
+        nf_diff = nf_pos.unsqueeze(2) - nf_pos.unsqueeze(1)  # (N, nf, nf, 3)
+        nf_dist = torch.norm(nf_diff, dim=-1)  # (N, nf, nf)
+        # Exclude self and same-leg adjacency (stride-2 block diagonal)
+        exclude = torch.zeros(n_nf, n_nf, dtype=torch.bool, device=penalty.device)
+        for i in range(n_nf):
+            exclude[i, i] = True
+            # Same leg: bodies at indices (2k, 2k+1) are THIGH+SHANK of one leg
+            leg = i // 2
+            for j in range(leg * 2, min(leg * 2 + 2, n_nf)):
+                exclude[i, j] = True
+                exclude[j, i] = True
+        cross_leg = ~exclude.unsqueeze(0)
+        penalty += ((nf_dist < self_collision_threshold) & cross_leg).any(dim=(1, 2)).float()
 
     return penalty
 
@@ -441,31 +470,31 @@ AME2_ANYMAL_D_REWARDS_CFG = {
             "sensor_cfg": SceneEntityCfg("contact_forces", body_ids=".*FOOT"),
         },
     ),
-    # === Regularization and Penalties ===
+    # === Regularization and Penalties (Table I: all weights ×dτ) ===
     "early_termination": RewTerm(
         func=early_termination,
-        weight=-500.0,  # -10 / dτ = -10 / 0.02
+        weight=-10.0,  # (-10/dτ) × dτ = -10
         params={},
     ),
     "undesired_events": RewTerm(
         func=undesired_events,
-        weight=-1.0,
+        weight=-0.02,  # -1 × 0.02
         params={
-            "sensor_cfg": SceneEntityCfg("contact_forces", body_ids=".*THIGH|.*SHANK"),
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_ids="base|.*THIGH|.*SHANK"),
             "foot_sensor_cfg": SceneEntityCfg("contact_forces", body_ids=".*FOOT"),
         },
     ),
-    "base_roll_rate": RewTerm(func=base_roll_rate, weight=-0.1, params={}),
-    "joint_regularization": RewTerm(func=joint_regularization, weight=-0.001, params={}),
-    "action_smoothness": RewTerm(func=action_smoothness, weight=-0.01, params={}),
+    "base_roll_rate": RewTerm(func=base_roll_rate, weight=-0.002, params={}),  # -0.1 × 0.02
+    "joint_regularization": RewTerm(func=joint_regularization, weight=-0.00002, params={}),  # -0.001 × 0.02
+    "action_smoothness": RewTerm(func=action_smoothness, weight=-0.0002, params={}),  # -0.01 × 0.02
     "link_contact_forces": RewTerm(
         func=link_contact_forces,
-        weight=-0.00001,
+        weight=-0.0000002,  # -0.00001 × 0.02
         params={"sensor_cfg": SceneEntityCfg("contact_forces")},
     ),
-    "link_acceleration": RewTerm(func=link_acceleration, weight=-0.001, params={}),
-    # === Simulation Fidelity ===
-    "joint_pos_limits": RewTerm(func=joint_pos_limits, weight=-1000.0, params={}),
-    "joint_vel_limits": RewTerm(func=joint_vel_limits, weight=-1.0, params={}),
-    "joint_torque_limits": RewTerm(func=joint_torque_limits, weight=-1.0, params={}),
+    "link_acceleration": RewTerm(func=link_acceleration, weight=-0.00002, params={}),  # -0.001 × 0.02
+    # === Simulation Fidelity (Table I: all weights ×dτ) ===
+    "joint_pos_limits": RewTerm(func=joint_pos_limits, weight=-20.0, params={}),  # -1000 × 0.02
+    "joint_vel_limits": RewTerm(func=joint_vel_limits, weight=-0.02, params={}),  # -1 × 0.02
+    "joint_torque_limits": RewTerm(func=joint_torque_limits, weight=-0.02, params={}),  # -1 × 0.02
 }

@@ -57,6 +57,9 @@ from .ame2_model import (
 )
 
 
+# Binary contact detection threshold (Newtons) — must match rewards.CONTACT_FORCE_THRESHOLD.
+CONTACT_FORCE_THRESHOLD: float = 1.0
+
 # ---------------------------------------------------------------------------
 # Left-Right Symmetry Augmentation (Sec. IV-B)
 # ---------------------------------------------------------------------------
@@ -92,8 +95,18 @@ def _flip_lr(
     Returns:
         (map_f, prop_f, contact_f) — mirrored tensors, same device/dtype.
     """
-    # Map: horizontal flip (W = lateral axis in robot frame)
-    map_f = torch.flip(map_feat, dims=[-1])
+    # Map: lateral flip (H = y/lateral axis in robot frame)
+    # Coordinate convention (from WTAMapFusion):
+    #   dim -2 (H, rows)  → y (lateral)   e.g. policy_h=14 covers ±0.52 m
+    #   dim -1 (W, cols)  → x (forward)   e.g. policy_w=36 covers −0.8..2.0 m
+    # L-R mirror flips y → −y = flip rows (dim -2), NOT columns (dim -1).
+    # BUG FIX: was torch.flip(dims=[-1]) which flipped forward axis instead.
+    map_f = torch.flip(map_feat, dims=[-2])
+    # Surface normal y-component (channel 2: ny = −∂h/∂y) negates under y → −y
+    # because ∂h/∂(−y) = −∂h/∂y, so new_ny = −old_ny.
+    if map_f.shape[1] >= 3:
+        map_f = map_f.clone()          # detach from flip's storage
+        map_f[:, 2] = -map_f[:, 2]
 
     # Proprioception: negate lateral-sensitive dims, permute + sign-flip joints
     prop_f = prop.clone()
@@ -440,9 +453,8 @@ class AME2StudentActorCritic(AME2ActorCritic):
     """
 
     PHASE1_ITERS: int = 5000
-    PHASE1_LR:   float = 1e-3   # paper: "large learning rate" in Phase 1
-    PHASE2_LR:   float = 1e-4   # [inferred] standard PPO LR for Phase 2
-    KL_TARGET:   float = 0.01
+    PHASE1_LR:   float = 1e-3   # [stated] Table VI: "LR When Surrogate Loss Disabled"
+    KL_TARGET:   float = 0.01   # [stated] Table VI: "Desired KL Divergence"
 
     def __init__(
         self,
@@ -483,8 +495,12 @@ class AME2StudentActorCritic(AME2ActorCritic):
         """Advance iteration counter and handle Phase 1 → 2 transition.
 
         Call once per training iteration (after each ``alg.update()`` call).
-        Switches optimizer LR from PHASE1_LR to PHASE2_LR exactly once when
-        crossing the PHASE1_ITERS boundary.
+        Detects the Phase 1 → 2 boundary (PPO surrogate enabled).
+
+        LR scheduling (Table VI):
+          Phase 1: fixed at PHASE1_LR=1e-3 (enforced by train_ame2.py)
+          Phase 2: starts at 1e-3 with adaptive KL-based scheduling
+                   (desired_kl=0.01, same as teacher PPO)
 
         Args:
             optimizer: Optimizer managing this policy's parameters.
@@ -497,11 +513,12 @@ class AME2StudentActorCritic(AME2ActorCritic):
         self.set_iteration(it)
         transitioned = was_phase1 and not self.in_phase1
         if transitioned:
-            for pg in optimizer.param_groups:
-                pg["lr"] = self.PHASE2_LR
+            # LR stays at PHASE1_LR (1e-3) which is also the initial adaptive LR.
+            # Adaptive scheduling (desired_kl=0.01) takes effect in Phase 2.
             print(
                 f"[AME2 Student] Phase 1 -> 2 at iter {it}: "
-                f"LR {self.PHASE1_LR} -> {self.PHASE2_LR}"
+                f"PPO surrogate enabled, LR={self.PHASE1_LR} "
+                f"(adaptive scheduling, desired_kl={self.KL_TARGET})"
             )
         return transitioned
 
@@ -632,7 +649,15 @@ class WTAMapManager:
         log_var_local: torch.Tensor,
         poses: torch.Tensor,
     ):
-        """Update a single environment's global map via WTA logic."""
+        """Update a single environment's global map via probabilistic WTA (Eq. 6-8).
+
+        FIX: Previously used deterministic min-variance instead of the paper's
+        probabilistic WTA logic. Now matches WTAMapFusion.update() exactly:
+          Eq.6: sigma2_eff = max(sigma2_t, 0.5 * sigma2_prior)
+          Validity: sigma2_eff < 1.5 * sigma2_prior OR sigma2_eff < 0.04
+          Eq.7: p_win = prec_new / (prec_new + prec_prior)
+          Eq.8: stochastic overwrite where xi < p_win
+        """
         var_local = log_var_local.exp()
         elev_flat = elev_local.reshape(1, -1)
         var_flat = var_local.reshape(1, -1)
@@ -645,17 +670,43 @@ class WTAMapManager:
         gvar = self.wta.global_var[env_idx, 0].view(-1)
         gelev = self.wta.global_elev[env_idx, 0].view(-1)
 
-        cand = (var_flat[0] < gvar[lin]).nonzero(as_tuple=True)[0]
-        if cand.numel() == 0:
+        sigma2_prior = gvar[lin]                                    # (N,)
+        sigma2_t = var_flat[0]                                      # (N,)
+
+        # Eq. 6: effective measurement variance, lower-bounded by half the prior
+        sigma2_eff = torch.max(sigma2_t, 0.5 * sigma2_prior)       # (N,)
+
+        # Validity check (paper Sec. V-A)
+        valid = (sigma2_eff < 1.5 * sigma2_prior) | (sigma2_eff < 0.04)
+        valid_idx = valid.nonzero(as_tuple=True)[0]
+        if valid_idx.numel() == 0:
             return
 
-        c_lin = lin[cand]
-        c_var = var_flat[0][cand]
-        c_elev = elev_flat[0][cand]
+        v_lin = lin[valid_idx]
+        v_sigma2_eff = sigma2_eff[valid_idx]
+        v_sigma2_pr = sigma2_prior[valid_idx]
+        v_elev = elev_flat[0][valid_idx]
 
-        order = c_var.argsort(descending=True)
-        gvar.scatter_(0, c_lin[order], c_var[order])
-        gelev.scatter_(0, c_lin[order], c_elev[order])
+        # Eq. 7: p_win = precision_new / (precision_new + precision_prior)
+        prec_new = 1.0 / (v_sigma2_eff + 1e-8)
+        prec_prior = 1.0 / (v_sigma2_pr + 1e-8)
+        p_win = prec_new / (prec_new + prec_prior)
+
+        # Eq. 8: stochastic overwrite
+        xi = torch.rand_like(p_win)
+        wins = xi < p_win
+        win_idx = wins.nonzero(as_tuple=True)[0]
+        if win_idx.numel() == 0:
+            return
+
+        w_lin = v_lin[win_idx]
+        w_var = v_sigma2_eff[win_idx]
+        w_elev = v_elev[win_idx]
+
+        # Sort descending by var so minimum-var wins last when indices collide
+        order = w_var.argsort(descending=True)
+        gvar.scatter_(0, w_lin[order], w_var[order])
+        gelev.scatter_(0, w_lin[order], w_elev[order])
 
     def get_policy_maps(
         self,
@@ -854,10 +905,10 @@ class AME2MapEnvWrapper:
     # Perception noise curriculum (Sec. IV-D3)
     # ------------------------------------------------------------------
 
-    #: Maximum additive Gaussian noise std applied to raw depth scans.
-    #: Appendix B: "0.05 m for map observations" (uniform noise max magnitude).
-    #: Applied as Gaussian during Phase 1 scan noise curriculum (Sec. IV-D.3).
-    SCAN_NOISE_STD_MAX: float = 0.05   # [stated] Appendix B
+    #: Maximum additive uniform noise magnitude applied to raw depth scans.
+    #: [stated] Appendix B: "zero-mean uniform noise ... 0.05 m for map observations".
+    #: Ramped linearly during Phase 1 scan noise curriculum (Sec. IV-D.3).
+    SCAN_NOISE_MAX: float = 0.05       # [stated] Appendix B
 
     def set_scan_noise_scale(self, scale: float) -> None:
         """Set perception noise curriculum scale for the raw depth scan.
@@ -870,7 +921,7 @@ class AME2MapEnvWrapper:
         produce reliable maps despite realistic sensor imperfections.
 
         Args:
-            scale: Value in [0, 1].  0 = no added noise, 1 = SCAN_NOISE_STD_MAX.
+            scale: Value in [0, 1].  0 = no added noise, 1 = SCAN_NOISE_MAX.
         """
         self._scan_noise_scale = float(max(0.0, min(1.0, scale)))
 
@@ -1139,8 +1190,11 @@ class AME2MapEnvWrapper:
             raw_scan_flat = torch.zeros(B, self.SCAN_H * self.SCAN_W, device=self._device)
             contact_12    = torch.zeros(B, 12, device=self._device)
 
-        # Per-foot contact force magnitude: (B, 12) → reshape (B,4,3) → norm → (B, 4)
-        contact_4 = contact_12.reshape(B, 4, 3).norm(dim=-1)
+        # Per-foot binary contact state: (B, 12) → reshape (B,4,3) → norm → threshold → (B, 4)
+        # Paper (Sec IV-B): "contact state of each link" — binary contact indicators.
+        # FIX: was continuous force magnitude; now thresholded to binary (0/1).
+        contact_force_mag = contact_12.reshape(B, 4, 3).norm(dim=-1)  # (B, 4)
+        contact_4 = (contact_force_mag > CONTACT_FORCE_THRESHOLD).float()  # (B, 4) binary
 
         # ── GT teacher map (teacher_map obs group, F15) ───────────────
         gt_map_flat = obs_buf.get("teacher_map")
@@ -1151,11 +1205,12 @@ class AME2MapEnvWrapper:
         raw_scan = raw_scan_flat.reshape(B, 1, self.SCAN_H, self.SCAN_W)
 
         # Perception noise curriculum (Sec. IV-D3): linearly ramp from
-        # 0 → SCAN_NOISE_STD_MAX over the first 20 % of teacher training.
+        # 0 → SCAN_NOISE_MAX over the first 20 % of teacher training.
         # set_scan_noise_scale() is called each iteration from train_ame2.py.
+        # BUG FIX: was Gaussian (randn); paper says "zero-mean uniform noise" (Appendix B).
         if self._scan_noise_scale > 0.0:
-            noise_std = self._scan_noise_scale * self.SCAN_NOISE_STD_MAX
-            raw_scan = raw_scan + torch.randn_like(raw_scan) * noise_std
+            noise_max = self._scan_noise_scale * self.SCAN_NOISE_MAX
+            raw_scan = raw_scan + (torch.rand_like(raw_scan) * 2.0 - 1.0) * noise_max
 
         # Student depth scan degradation (Sec.IV-D.3): missing returns + artifacts
         # Applied BEFORE MappingNet so the network learns to handle sensor failures.
@@ -1213,6 +1268,14 @@ class AME2MapEnvWrapper:
             if partial_envs.any():
                 local_map = self._build_local_map(elev, log_var)  # (B, 4, ph, pw)
                 student_map[partial_envs] = local_map[partial_envs]
+
+            # 1b. Complete-map environments: override variance to 0.0025 m²
+            # [stated] Appendix B: "complete maps with variance 0.0025 m²"
+            # This signals low uncertainty to the student policy for well-observed terrain.
+            if self._partial_map_fraction > 0.0:
+                complete_envs = self._partial_map_mask          # True = complete map
+                if complete_envs.any():
+                    student_map[complete_envs, 3] = 0.0025
 
             # 2. Map corruption: replace a random fraction of cells with random
             #    elevation + high uncertainty sentinel.  Forces the policy to
@@ -1426,9 +1489,11 @@ if __name__ == "__main__":
     assert torch.allclose(cont_ff, cont_t, atol=1e-6), "Contact double-flip failed"
     print("  double-flip identity: OK")
 
-    # Verify W dimension is flipped
-    assert torch.allclose(map_f, map_t.flip(-1)), "Map W-flip mismatch"
-    print("  map W-flip: OK")
+    # Verify H dimension (lateral/y axis) is flipped and ny channel negated
+    expected_map_f = map_t.flip(-2).clone()
+    expected_map_f[:, 2] = -expected_map_f[:, 2]   # ny negation
+    assert torch.allclose(map_f, expected_map_f), "Map lateral-flip mismatch"
+    print("  map H-flip (lateral): OK")
 
     # evaluate() output shape unchanged (B,1) despite internal augmentation
     v_aug = teacher_ac.evaluate(obs_td)

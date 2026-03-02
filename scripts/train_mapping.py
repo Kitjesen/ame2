@@ -102,25 +102,32 @@ class DepthScanSimulator:
     """
     Simulates noisy depth scans from ground-truth height fields.
 
-    Noise model:
+    Noise model (Paper Appendix B / Sec. V-B):
+        - Additive uniform noise with random magnitude on each cell  [stated]
         - Range truncation: cells with abs(elevation) > 2.0m are set to 0
-        - Gaussian noise:   sigma = 0.02m
         - Random dropout:   20% of cells set to 0
+        - Random outliers:  5% of cells assigned random values  [stated]
     """
 
-    def __init__(self, range_max: float = 2.0, noise_std: float = 0.02,
-                 dropout_rate: float = 0.20,
+    def __init__(self, range_max: float = 2.0, noise_max: float = 0.05,
+                 dropout_rate: float = 0.20, outlier_rate: float = 0.05,
                  device: torch.device = torch.device("cpu")):
         self.range_max = range_max
-        self.noise_std = noise_std
+        self.noise_max = noise_max
         self.dropout_rate = dropout_rate
+        self.outlier_rate = outlier_rate
         self.device = device
 
     def simulate(self, gt: torch.Tensor) -> torch.Tensor:
         scan = gt.clone()
-        scan = scan + torch.randn_like(scan) * self.noise_std
-        scan[scan.abs() > self.range_max] = 0.0
-        scan[torch.rand_like(scan) < self.dropout_rate] = 0.0
+        # FIX: Paper says "additive uniform noise" — was Gaussian, now uniform [-noise_max, +noise_max]
+        scan = scan + (torch.rand_like(scan) * 2.0 - 1.0) * self.noise_max
+        # Range truncation and dropout — use torch.where to avoid boolean-index GPU sync
+        scan = torch.where(scan.abs() > self.range_max, torch.zeros_like(scan), scan)
+        scan = torch.where(torch.rand_like(scan) < self.dropout_rate, torch.zeros_like(scan), scan)
+        # Random outliers: assign random elevation values (within typical range)
+        outlier_vals = torch.rand_like(scan) * 2.0 - 1.0
+        scan = torch.where(torch.rand_like(scan) < self.outlier_rate, outlier_vals, scan)
         return scan
 
 
@@ -210,7 +217,7 @@ class MappingTrainer:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="MappingNet pretraining (Phase 0)")
     parser.add_argument("--num_steps", type=int, default=100,
-                        help="Number of gradient steps (paper: ~50 000 for convergence)")
+                        help="Number of gradient steps (paper: 54M frames total, ~1.7M steps at batch_size=32)")
     parser.add_argument("--batch_size", type=int, default=32,
                         help="Batch size per step")
     parser.add_argument("--lr", type=float, default=1e-3,

@@ -351,11 +351,18 @@ def run_student_training(teacher_ckpt: str):
 
     # Inject phase management: RSL-RL has no hook, so we patch alg.update()
     # to call step_iteration() after every gradient update.
+    # Phase 1 (iter 0..4999): enforce fixed LR = 1e-3, PPO surrogate disabled.
+    # Phase 2 (iter 5000+):   LR starts at 1e-3 with adaptive KL-based scheduling.
     _orig_update = runner.alg.update
 
     def _phase_aware_update():
         result = _orig_update()
         student_net.step_iteration(optimizer, runner.current_learning_iteration)
+        # Phase 1: enforce fixed LR = 1e-3, overriding any algorithm-internal
+        # LR adjustments.  [stated] Table VI: "LR When Surrogate Loss Disabled: 0.001"
+        if student_net.in_phase1:
+            for pg in optimizer.param_groups:
+                pg["lr"] = AME2StudentActorCritic.PHASE1_LR
         return result
 
     runner.alg.update = _phase_aware_update
@@ -363,10 +370,10 @@ def run_student_training(teacher_ckpt: str):
     print(f"[Student] Logging to: {log_dir}")
     print(f"[Student] Phase 1 (pure distillation): "
           f"iter 0-{AME2StudentActorCritic.PHASE1_ITERS}  "
-          f"lr={AME2StudentActorCritic.PHASE1_LR}")
+          f"lr={AME2StudentActorCritic.PHASE1_LR} (fixed)")
     print(f"[Student] Phase 2 (PPO+distillation) : "
           f"iter {AME2StudentActorCritic.PHASE1_ITERS}-{runner_cfg.max_iterations}  "
-          f"lr={AME2StudentActorCritic.PHASE2_LR}")
+          f"lr=adaptive (desired_kl={AME2StudentActorCritic.KL_TARGET})")
 
     runner.learn(num_learning_iterations=runner_cfg.max_iterations, init_at_random_ep_len=True)
 
