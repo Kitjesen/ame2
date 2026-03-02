@@ -450,9 +450,8 @@ class AME2StudentActorCritic(AME2ActorCritic):
     """
 
     PHASE1_ITERS: int = 5000
-    PHASE1_LR:   float = 1e-3   # paper: "large learning rate" in Phase 1
-    PHASE2_LR:   float = 1e-4   # [inferred] standard PPO LR for Phase 2
-    KL_TARGET:   float = 0.01
+    PHASE1_LR:   float = 1e-3   # [stated] Table VI: "LR When Surrogate Loss Disabled"
+    KL_TARGET:   float = 0.01   # [stated] Table VI: "Desired KL Divergence"
 
     def __init__(
         self,
@@ -493,8 +492,12 @@ class AME2StudentActorCritic(AME2ActorCritic):
         """Advance iteration counter and handle Phase 1 → 2 transition.
 
         Call once per training iteration (after each ``alg.update()`` call).
-        Switches optimizer LR from PHASE1_LR to PHASE2_LR exactly once when
-        crossing the PHASE1_ITERS boundary.
+        Detects the Phase 1 → 2 boundary (PPO surrogate enabled).
+
+        LR scheduling (Table VI):
+          Phase 1: fixed at PHASE1_LR=1e-3 (enforced by train_ame2.py)
+          Phase 2: starts at 1e-3 with adaptive KL-based scheduling
+                   (desired_kl=0.01, same as teacher PPO)
 
         Args:
             optimizer: Optimizer managing this policy's parameters.
@@ -507,11 +510,12 @@ class AME2StudentActorCritic(AME2ActorCritic):
         self.set_iteration(it)
         transitioned = was_phase1 and not self.in_phase1
         if transitioned:
-            for pg in optimizer.param_groups:
-                pg["lr"] = self.PHASE2_LR
+            # LR stays at PHASE1_LR (1e-3) which is also the initial adaptive LR.
+            # Adaptive scheduling (desired_kl=0.01) takes effect in Phase 2.
             print(
                 f"[AME2 Student] Phase 1 -> 2 at iter {it}: "
-                f"LR {self.PHASE1_LR} -> {self.PHASE2_LR}"
+                f"PPO surrogate enabled, LR={self.PHASE1_LR} "
+                f"(adaptive scheduling, desired_kl={self.KL_TARGET})"
             )
         return transitioned
 
@@ -898,10 +902,10 @@ class AME2MapEnvWrapper:
     # Perception noise curriculum (Sec. IV-D3)
     # ------------------------------------------------------------------
 
-    #: Maximum additive Gaussian noise std applied to raw depth scans.
-    #: Appendix B: "0.05 m for map observations" (uniform noise max magnitude).
-    #: Applied as Gaussian during Phase 1 scan noise curriculum (Sec. IV-D.3).
-    SCAN_NOISE_STD_MAX: float = 0.05   # [stated] Appendix B
+    #: Maximum additive uniform noise magnitude applied to raw depth scans.
+    #: [stated] Appendix B: "zero-mean uniform noise ... 0.05 m for map observations".
+    #: Ramped linearly during Phase 1 scan noise curriculum (Sec. IV-D.3).
+    SCAN_NOISE_MAX: float = 0.05       # [stated] Appendix B
 
     def set_scan_noise_scale(self, scale: float) -> None:
         """Set perception noise curriculum scale for the raw depth scan.
@@ -914,7 +918,7 @@ class AME2MapEnvWrapper:
         produce reliable maps despite realistic sensor imperfections.
 
         Args:
-            scale: Value in [0, 1].  0 = no added noise, 1 = SCAN_NOISE_STD_MAX.
+            scale: Value in [0, 1].  0 = no added noise, 1 = SCAN_NOISE_MAX.
         """
         self._scan_noise_scale = float(max(0.0, min(1.0, scale)))
 
@@ -1195,11 +1199,12 @@ class AME2MapEnvWrapper:
         raw_scan = raw_scan_flat.reshape(B, 1, self.SCAN_H, self.SCAN_W)
 
         # Perception noise curriculum (Sec. IV-D3): linearly ramp from
-        # 0 → SCAN_NOISE_STD_MAX over the first 20 % of teacher training.
+        # 0 → SCAN_NOISE_MAX over the first 20 % of teacher training.
         # set_scan_noise_scale() is called each iteration from train_ame2.py.
+        # BUG FIX: was Gaussian (randn); paper says "zero-mean uniform noise" (Appendix B).
         if self._scan_noise_scale > 0.0:
-            noise_std = self._scan_noise_scale * self.SCAN_NOISE_STD_MAX
-            raw_scan = raw_scan + torch.randn_like(raw_scan) * noise_std
+            noise_max = self._scan_noise_scale * self.SCAN_NOISE_MAX
+            raw_scan = raw_scan + (torch.rand_like(raw_scan) * 2.0 - 1.0) * noise_max
 
         # Student depth scan degradation (Sec.IV-D.3): missing returns + artifacts
         # Applied BEFORE MappingNet so the network learns to handle sensor failures.
@@ -1257,6 +1262,14 @@ class AME2MapEnvWrapper:
             if partial_envs.any():
                 local_map = self._build_local_map(elev, log_var)  # (B, 4, ph, pw)
                 student_map[partial_envs] = local_map[partial_envs]
+
+            # 1b. Complete-map environments: override variance to 0.0025 m²
+            # [stated] Appendix B: "complete maps with variance 0.0025 m²"
+            # This signals low uncertainty to the student policy for well-observed terrain.
+            if self._partial_map_fraction > 0.0:
+                complete_envs = self._partial_map_mask          # True = complete map
+                if complete_envs.any():
+                    student_map[complete_envs, 3] = 0.0025
 
             # 2. Map corruption: replace a random fraction of cells with random
             #    elevation + high uncertainty sentinel.  Forces the policy to
