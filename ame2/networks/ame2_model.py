@@ -289,7 +289,6 @@ class WTAMapFusion(nn.Module):
     """
 
     INF_VAR: float = 1e4   # sentinel for unobserved cells
-    DEFAULT_STANDING_HEIGHT: float = -0.50  # ground relative to base (ANYmal-D ~0.5m tall)
 
     def __init__(
         self,
@@ -307,11 +306,9 @@ class WTAMapFusion(nn.Module):
         policy_w: int = 36,         # stated
         policy_cx: float = 0.6,     # stated
         policy_cy: float = 0.0,     # stated
-        standing_height: float | None = None,  # ground relative to base; None → use class default
     ):
         super().__init__()
         self.B          = B
-        self._standing_h = standing_height if standing_height is not None else self.DEFAULT_STANDING_HEIGHT
         self.global_h   = global_h
         self.global_w   = global_w
         self.global_res = global_res
@@ -333,9 +330,10 @@ class WTAMapFusion(nn.Module):
         self.register_buffer('_policy_pts', torch.stack([x.flatten(), y.flatten()], dim=1))
 
         # Global map state buffers — (B, 1, Hg, Wg); not parameters
-        # Paper (Sec V-A): "initialized as flat ground at the robot's standing
-        # height (ground height relative to the base) with large uncertainties."
-        self.register_buffer('global_elev', torch.full((B, 1, global_h, global_w), self._standing_h))
+        # Initialised to zero elevation with large uncertainty (INF_VAR).
+        # The first real observation will immediately overwrite via WTA
+        # since any finite variance beats INF_VAR.
+        self.register_buffer('global_elev', torch.zeros(B, 1, global_h, global_w))
         self.register_buffer('global_var',  torch.full((B, 1, global_h, global_w), self.INF_VAR))
 
     # ------------------------------------------------------------------
@@ -343,12 +341,12 @@ class WTAMapFusion(nn.Module):
     # ------------------------------------------------------------------
 
     def reset(self, batch_idx=None):
-        """Reset global map to flat ground at standing height with large uncertainty."""
+        """Reset global map to unobserved state.  Call at episode start."""
         if batch_idx is None:
-            self.global_elev.fill_(self._standing_h)
+            self.global_elev.zero_()
             self.global_var.fill_(self.INF_VAR)
         else:
-            self.global_elev[batch_idx].fill_(self._standing_h)
+            self.global_elev[batch_idx].zero_()
             self.global_var[batch_idx].fill_(self.INF_VAR)
 
     # ------------------------------------------------------------------

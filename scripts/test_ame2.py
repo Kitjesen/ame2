@@ -78,14 +78,12 @@ class TestWTAMapFusion:
         self.poses = torch.zeros(B, 3)  # robot at origin, no yaw
 
     def test_reset(self):
-        """After reset, global_var must all equal INF_VAR and elev must equal standing height."""
+        """After reset, global_var must all equal INF_VAR."""
         self.wta.reset()
         expected = torch.full_like(self.wta.global_var, WTAMapFusion.INF_VAR)
         assert torch.equal(self.wta.global_var, expected), "global_var not all INF_VAR after reset"
-        # Paper Sec V-A: global map initialised to flat ground at standing height
-        expected_elev = torch.full_like(self.wta.global_elev, self.wta._standing_h)
-        assert torch.equal(self.wta.global_elev, expected_elev), \
-            f"global_elev not all {self.wta._standing_h} after reset"
+        assert torch.equal(self.wta.global_elev, torch.zeros_like(self.wta.global_elev)), \
+            "global_elev not all zeros after reset"
 
     def test_update_shape(self):
         """update() must not change global_elev shape."""
