@@ -62,7 +62,7 @@ class PolicyConfig:
     # Map dimensions (stated)
     map_h: int = 14           # stated: ANYmal-D policy map height
     map_w: int = 36           # stated: ANYmal-D policy map width
-    d_map_teacher: int = 3    # stated: x, y, z (elevation + 2 normals)
+    d_map_teacher: int = 3    # stated: elevation + 2 surface normals (nx, ny)
     d_map_student: int = 4    # stated: teacher channels + uncertainty
 
     # AME-2 encoder internals

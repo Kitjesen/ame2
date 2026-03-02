@@ -171,28 +171,53 @@ def gt_policy_map_flat(
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
     map_h: int = 14,
     map_w: int = 36,
+    policy_res: float = 0.08,
 ) -> "torch.Tensor":
     """Ground-truth policy map from policy-resolution RayCaster.
 
     Reads the world-frame hit positions from ``height_scanner_policy``
-    (14×36 @ 8 cm) and returns them as robot-relative (x, y, z) offsets.
-    Channel layout matches the teacher map used by AME2Encoder:
-        channels 0/1/2 = (x_rel, y_rel, z_rel) per grid point
+    (14×36 @ 8 cm) and returns elevation + surface normals in the
+    body-frame grid.
+
+    Channel layout matches the teacher map used by AME2Encoder and
+    corresponds to the first 3 channels of the student's WTA crop:
+        channel 0 = elevation  (z_hit − z_base)
+        channel 1 = normal_x   (−∂h/∂x, forward gradient)
+        channel 2 = normal_y   (−∂h/∂y, lateral gradient)
+
+    BUG FIX: Previously returned world-frame 3D position offsets
+    [x_world, y_world, z_world] instead of [elev, nx, ny].  This caused:
+      - Inconsistent channel semantics vs student WTA crop [elev, nx, ny, var]
+      - World-frame (x, y) varying with robot yaw (not body-frame invariant)
+      - Wrong channel negated under L-R symmetry augmentation (code negates
+        ch 2 = ny, but old ch 2 was z_offset which should NOT negate)
 
     Returns: (B, 3 * map_h * map_w) = (B, 1512) flat tensor.
     """
     import torch
+    import torch.nn.functional as F
+
     scanner = env.scene.sensors[scanner_cfg.name]
     asset = env.scene[asset_cfg.name]
 
-    # FIX: Isaac Lab RayCaster API uses `ray_hits_w`, not `pos_w`.
     hits_w = scanner.data.ray_hits_w     # (B, H*W, 3)
     base_pos = asset.data.root_pos_w     # (B, 3)
-
-    hits_rel = hits_w - base_pos.unsqueeze(1)  # (B, H*W, 3)
-
     B = hits_w.shape[0]
-    return hits_rel.permute(0, 2, 1).reshape(B, 3 * map_h * map_w)
+
+    # Channel 0: elevation = z_hit − z_base (height relative to robot)
+    elev = (hits_w[:, :, 2] - base_pos[:, 2:3])           # (B, H*W)
+    elev = elev.reshape(B, 1, map_h, map_w)                # (B, 1, H, W)
+
+    # Channels 1-2: surface normals via central differences
+    # Same computation as WTAMapFusion._surface_normals (ame2_model.py)
+    p = F.pad(elev, (1, 1, 1, 1), mode='replicate')       # (B, 1, H+2, W+2)
+    dhdx = (p[:, :, 1:-1, 2:] - p[:, :, 1:-1, :-2]) / (2.0 * policy_res)
+    dhdy = (p[:, :, 2:, 1:-1] - p[:, :, :-2, 1:-1]) / (2.0 * policy_res)
+    normals = torch.cat([-dhdx, -dhdy], dim=1)             # (B, 2, H, W)
+
+    # [elev, nx, ny] = 3 channels, matching student WTA crop[:, :3]
+    gt_map = torch.cat([elev, normals], dim=1)              # (B, 3, H, W)
+    return gt_map.reshape(B, 3 * map_h * map_w)
 
 
 # ============================================================================
@@ -330,7 +355,7 @@ class AME2AnymalEnvCfg(LocomotionVelocityRoughEnvCfg):
       - Height scanner: 31x51 grid @ 4cm resolution → feeds MappingNet    [stated]
       - policy obs (48D): base_vel(3)|ang_vel+grav+q+dq+act(42)|actor_cmd(3)  [stated]
       - teacher_privileged obs (1593D): height_scan(1581) + foot_contact(12)
-      - teacher_map obs (1512D): GT policy map 3×14×36 flat
+      - teacher_map obs (1512D): GT policy map [elev, nx, ny] 3×14×36 flat
       - Actor cmd 3D: [clip(d_xy,2m), sin(yaw_rel), cos(yaw_rel)]     [stated]
       - Critic uses same 48D prop as teacher actor (AsymmetricCritic)
       - 4 custom termination conditions (Sec IV-D.2)                   [stated]
