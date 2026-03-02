@@ -615,15 +615,15 @@ class AME2AnymalEnvCfg(LocomotionVelocityRoughEnvCfg):
             },
         )
 
-        # ── Regularization and Penalties (Table I) ─────────────────────────────
-        self.rewards.early_termination = RewTerm(  # -10 / dτ = -500   [stated]
+        # ── Regularization and Penalties (Table I, weight = paper_weight × dτ) ──
+        self.rewards.early_termination = RewTerm(  # (-10/dτ) × dτ = -10  [stated]
             func=early_termination,
-            weight=-500.0,
+            weight=-10.0,
             params={},
         )
-        self.rewards.undesired_events = RewTerm(   # -1  [stated]
+        self.rewards.undesired_events = RewTerm(   # -1 × 0.02 = -0.02  [stated]
             func=undesired_events,
-            weight=-1.0,
+            weight=-0.02,
             params={
                 "sensor_cfg": SceneEntityCfg(
                     "contact_forces", body_names=[".*THIGH", ".*SHANK"]
@@ -634,49 +634,49 @@ class AME2AnymalEnvCfg(LocomotionVelocityRoughEnvCfg):
                 "asset_cfg": SceneEntityCfg("robot"),
             },
         )
-        self.rewards.base_roll_rate = RewTerm(     # -0.1  [stated]
+        self.rewards.base_roll_rate = RewTerm(     # -0.1 × 0.02 = -0.002  [stated]
             func=base_roll_rate,
-            weight=-0.1,
+            weight=-0.002,
             params={"asset_cfg": SceneEntityCfg("robot")},
         )
-        self.rewards.joint_regularization = RewTerm(  # -0.001  [stated]
+        self.rewards.joint_regularization = RewTerm(  # -0.001 × 0.02 = -0.00002 [stated]
             func=joint_regularization,
-            weight=-0.001,
+            weight=-0.00002,
             params={"asset_cfg": SceneEntityCfg("robot")},
         )
-        self.rewards.action_smoothness = RewTerm(  # -0.01  [stated]
+        self.rewards.action_smoothness = RewTerm(  # -0.01 × 0.02 = -0.0002  [stated]
             func=action_smoothness,
-            weight=-0.01,
+            weight=-0.0002,
             params={},
         )
-        self.rewards.link_contact_forces = RewTerm(  # -0.00001  [stated]
+        self.rewards.link_contact_forces = RewTerm(  # -0.00001 × 0.02 = -0.0000002 [stated]
             func=link_contact_forces,
-            weight=-0.00001,
+            weight=-0.0000002,
             params={
                 "sensor_cfg": SceneEntityCfg("contact_forces"),
                 "asset_cfg": SceneEntityCfg("robot"),
             },
         )
-        self.rewards.link_acceleration = RewTerm(  # -0.001  [stated]
+        self.rewards.link_acceleration = RewTerm(  # -0.001 × 0.02 = -0.00002 [stated]
             func=link_acceleration,
-            weight=-0.001,
+            weight=-0.00002,
             params={"asset_cfg": SceneEntityCfg("robot")},
         )
 
-        # ── Simulation Fidelity (Table I) ──────────────────────────────────────
-        self.rewards.ame2_joint_pos_limits = RewTerm(  # -1000  [stated]
+        # ── Simulation Fidelity (Table I, weight = paper_weight × dτ) ─────────
+        self.rewards.ame2_joint_pos_limits = RewTerm(  # -1000 × 0.02 = -20 [stated]
             func=joint_pos_limits,
-            weight=-1000.0,
+            weight=-20.0,
             params={"asset_cfg": SceneEntityCfg("robot")},
         )
-        self.rewards.ame2_joint_vel_limits = RewTerm(  # -1  [stated]
+        self.rewards.ame2_joint_vel_limits = RewTerm(  # -1 × 0.02 = -0.02  [stated]
             func=joint_vel_limits,
-            weight=-1.0,
+            weight=-0.02,
             params={"asset_cfg": SceneEntityCfg("robot")},
         )
-        self.rewards.ame2_joint_torque_limits = RewTerm(  # -1  [stated]
+        self.rewards.ame2_joint_torque_limits = RewTerm(  # -1 × 0.02 = -0.02 [stated]
             func=joint_torque_limits,
-            weight=-1.0,
+            weight=-0.02,
             params={"asset_cfg": SceneEntityCfg("robot")},
         )
 
