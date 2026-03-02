@@ -4,10 +4,12 @@ AME-2 terrain configuration aligned to real Isaac Lab TerrainGeneratorCfg API.
 Training terrains — 12 types from paper Sec.V-B with [stated] proportions:
   Dense    25%  (Rough 5% + StairDown 5% + StairUp 5% + Boxes 5% + Obstacles 5%)
   Climbing 30%  (ClimbingUp 20% + ClimbingDown 5% + Consecutive 5%)
-  Sparse   45%  (Gap 5% + Pallets 5% + Stones 30% + Beam 5%)
+  Sparse   50%  (Gap 5% + Pallets 5% + Stones 35% + Beam 5%)
 
-Note: Paper Sec.V-B labels Sparse as "50%" but sub-terrain proportions sum to 45%.
-We use explicit sub-terrain proportions (total 100%).
+Note: Paper Sec.V-B labels Sparse as "50%". Each sub-terrain proportion is
+stated except that "Stones (Sparse, 30%)" leaves a 5% gap to reach 50%.
+We assign the extra 5% to Stones (the largest sparse terrain) to match the
+stated category total: Stones 35%.
 
 Test terrains — 4 evaluation-only environments from paper Sec.V-C / Fig. 5.
   These are NOT used during training. curriculum=False, fixed high difficulty.
@@ -124,7 +126,7 @@ PALLETS_TERRAIN = terrain_gen.MeshRailsTerrainCfg(
 )
 
 STONES_TERRAIN = terrain_gen.HfSteppingStonesTerrainCfg(
-    proportion=0.30,
+    proportion=0.35,  # FIX: 30%→35% so Sparse sums to paper's stated 50%
     stone_height_max=0.25,
     stone_width_range=(0.15, 0.60),
     stone_distance_range=(0.05, 0.20),

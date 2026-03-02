@@ -245,9 +245,13 @@ class MappingNet(nn.Module):
             w_b = TV(Y_b) / (Σ TV(Y_b') + ε)
         y: (B, 1, H, W) ground-truth elevations.
         """
-        dy = (y[:, :, 1:, :] - y[:, :, :-1, :]).abs().mean(dim=[1, 2, 3])
-        dx = (y[:, :, :, 1:] - y[:, :, :, :-1]).abs().mean(dim=[1, 2, 3])
-        tv = (dy + dx) / 2.0
+        H, W = y.shape[2], y.shape[3]
+        # FIX: paper Eq.10 divides both gradient terms by H*W consistently.
+        # Previously dy.mean() divided by (H-1)*W and dx.mean() by H*(W-1),
+        # which introduces a subtle asymmetry.
+        dy = (y[:, :, 1:, :] - y[:, :, :-1, :]).abs().sum(dim=[1, 2, 3])  # (B,)
+        dx = (y[:, :, :, 1:] - y[:, :, :, :-1]).abs().sum(dim=[1, 2, 3])  # (B,)
+        tv = (dy + dx) / (H * W)
         w  = tv / (tv.sum() + eps)
         return w
 
