@@ -151,6 +151,10 @@ def update_curricula(env_direct: AME2DirectWrapper, runner: OnPolicyRunner, it: 
         if it % 100 == 0:
             print(f"[GoalCurr] it={it}: goal_radius→{_goal_radius[0]:.1f}m")
 
+    # Entropy decay: 0.004 → 0.001 linear over full training [stated Appendix C]
+    entropy = 0.004 - (0.004 - 0.001) * min(1.0, it / max(1, args_cli.max_iterations))
+    runner.alg.entropy_coef = entropy
+
     # lin_vel_tracking weight decay: 1.5 → 0.3 once robot starts walking
     # Trigger: stagnation EMA < 0.30 (robot reliably walks, not standing still)
     # Decay rate: -0.002/iter → takes ~600 iters to fully decay
