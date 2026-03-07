@@ -119,37 +119,45 @@ def make_runner_cfg(seed: int, num_mini_batches: int, log_dir: str, device: str)
 
 # ── Curriculum state ──────────────────────────────────────────────────────────
 
-_stag_ema       = [0.5]
-_goal_radius    = [1.0]    # restart from 1.0m (v8 jumped to 4.4m too early)
-_GOAL_R_MIN     = 0.8
-_GOAL_R_MAX     = 5.0
-_GOAL_R_STEP    = 0.2      # smaller step: 0.3→0.2, slower expansion
+_stag_ema        = [0.5]
+_goal_radius     = [1.0]    # start small, grow slowly
+_last_expand_it  = [-100]   # last iteration goal_r was expanded (rate limiter)
+_GOAL_R_MIN      = 0.8
+_GOAL_R_MAX      = 5.0
+_GOAL_R_STEP     = 0.2      # +0.2m per expansion event
+_GOAL_R_COOLDOWN = 200      # at most one expansion per 200 iters (prevent rapid jumps)
 
 
 def update_curricula(env_direct: AME2DirectWrapper, runner: OnPolicyRunner, it: int) -> None:
     """Update all curricula each iteration.
 
-    From AME-2 paper Sec.IV-D.3 [stated]:
-      1. Perception noise ramp: 0→max over first 20% iters
-      2. Heading curriculum:    face-goal→random over first 20% iters
-      3. Goal distance:         expand when stagnation low (legged_gym style)
+    Curriculum design:
+      1. Heading:   face-goal → gradual random over 60% of training
+                    (user request: learn walk first, then learn to turn)
+      2. Goal dist: expand +0.2m only when stag_ema<0.25 AND 200-iter cooldown
+                    (prevents rapid jump from stagnation noise)
+      3. Perception noise: 0→max over first 20% iters [stated]
     """
-    frac = min(1.0, it / max(1, int(0.2 * args_cli.max_iterations)))
-    env_direct.set_scan_noise_scale(frac)
-    env_direct.set_heading_curriculum(frac)
+    # Heading curriculum: ramp over 60% of training (not 20%) — give robot time to
+    # learn goal-directed walking before it must also learn to turn from random yaw.
+    heading_frac = min(1.0, it / max(1, int(0.6 * args_cli.max_iterations)))
+    env_direct.set_scan_noise_scale(
+        min(1.0, it / max(1, int(0.2 * args_cli.max_iterations)))
+    )
+    env_direct.set_heading_curriculum(heading_frac)
 
     # Update stagnation EMA
     ep_log  = runner.env.extras.get("log", {})
     stag    = float(ep_log.get("Episode_Termination/stagnation", 0.5))
     _stag_ema[0] = 0.05 * stag + 0.95 * _stag_ema[0]
 
-    # Goal distance curriculum (legged_gym style)
-    # Always enforce current goal_radius (not just when expanding)
+    # Goal distance curriculum — rate-limited to prevent oscillation
     env_direct.set_goal_radius(_goal_radius[0])
-    if _stag_ema[0] < 0.30 and _goal_radius[0] < _GOAL_R_MAX:
+    cooldown_ok = (it - _last_expand_it[0]) >= _GOAL_R_COOLDOWN
+    if _stag_ema[0] < 0.25 and _goal_radius[0] < _GOAL_R_MAX and cooldown_ok:
         _goal_radius[0] = min(_goal_radius[0] + _GOAL_R_STEP, _GOAL_R_MAX)
-        if it % 100 == 0:
-            print(f"[GoalCurr] it={it}: goal_radius→{_goal_radius[0]:.1f}m")
+        _last_expand_it[0] = it
+        print(f"[GoalCurr] it={it}: goal_radius→{_goal_radius[0]:.1f}m  stag_ema={_stag_ema[0]:.3f}")
 
     # Entropy decay: 0.004 → 0.001 linear over full training [stated Appendix C]
     entropy = 0.004 - (0.004 - 0.001) * min(1.0, it / max(1, args_cli.max_iterations))
