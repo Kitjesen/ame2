@@ -289,9 +289,9 @@ class AME2DirectEnv(DirectRLEnv):
         self._ep_sums["position_tracking"] += cfg.w_position_tracking * r_pos
 
         # 1b. position_approach — always-on dense gradient (not in paper, fills t_mask gap)
-        #     r = exp(-sigma * d_xy): sigma=1.5 → steeper gradient for distant goals
-        #     d=4m→0.002, d=2m→0.05, d=1m→0.22, d=0.5m→0.47, d=0→1.0
-        r_approach = torch.exp(-1.5 * d_xy)
+        #     r = exp(-sigma * d_xy): sigma=0.5 → gradient non-trivial at 4m (was 1.5 → ≈0)
+        #     sigma=0.5: d=4m→0.135, d=2m→0.368, d=1m→0.607, d=0.5m→0.779, d=0→1.0
+        r_approach = torch.exp(-0.5 * d_xy)
         rew += cfg.w_position_approach * r_approach
         self._ep_sums["position_approach"] += cfg.w_position_approach * r_approach
 

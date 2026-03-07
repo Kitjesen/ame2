@@ -121,20 +121,20 @@ class AME2DirectEnvCfg(DirectRLEnvCfg):
 
     # ── Reward Weights ──────────────────────────────────────────────────────
     w_position_tracking:    float = 2.0       # 100 * 0.02   [stated]
-    w_position_approach:    float = 1.5       # always-on exp(-1.5*d): steeper gradient
+    w_position_approach:    float = 1.5       # always-on exp(-0.5*d): sigma 1.5→0.5, d=4m→0.135 (was ≈0)
     w_upright_bonus:        float = 0.1       # survival: stay upright throughout episode
     w_base_height:          float = 0.3       # just enough to prevent prone; was 2.0 → dominated reward (71%)
     w_feet_air_time:        float = 1.0       # key gait signal: reward each foot lifted (Isaac Lab anymal_c pattern)
     w_heading_tracking:     float = 1.0       # 50 * 0.02    [stated]
     w_moving_to_goal:       float = 0.4       # boosted 0.1→0.4
-    w_vel_toward_goal:      float = 0.0       # disabled: subsumed by lin_vel_tracking
+    w_vel_toward_goal:      float = 1.0       # re-enabled: clamp(v_proj/2, -1, 1) — direct cos-based goal signal
     w_lin_vel_tracking:     float = 1.5       # Isaac Lab standard: exp(-||cmd_vel-vel||^2/0.25)
     w_standing_at_goal:     float = 0.1       # 5 * 0.02     [stated]
     w_early_termination:    float = -10.0     # reduced from -100: policy was too afraid to try walking
     w_undesired_events:     float = -0.05    # reduced from -0.2: DCMotor soft actuator → frequent body contacts
     w_base_roll_rate:       float = -0.1      # [stated]
     w_joint_regularization: float = -0.001    # [stated]
-    w_action_smoothness:    float = -0.01     # [stated]
+    w_action_smoothness:    float = -0.05     # increased from -0.01: reduce thigh_acc (25% terminations)
     w_link_contact_forces:  float = 0.0        # DCMotor thigh接触力太大，先禁用（LSTM原值-0.00001）
     w_link_acceleration:    float = -0.001    # [stated]
     w_joint_pos_limits:     float = -1.0       # reduced from paper -1000: initial noise (std=1.0) + action_scale=0.5 causes HFE limits to be hit frequently, dominating reward at -300/ep vs ~15 positive

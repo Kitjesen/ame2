@@ -120,10 +120,10 @@ def make_runner_cfg(seed: int, num_mini_batches: int, log_dir: str, device: str)
 # ── Curriculum state ──────────────────────────────────────────────────────────
 
 _stag_ema       = [0.5]
-_goal_radius    = [0.8]
+_goal_radius    = [1.0]    # restart from 1.0m (v8 jumped to 4.4m too early)
 _GOAL_R_MIN     = 0.8
 _GOAL_R_MAX     = 5.0
-_GOAL_R_STEP    = 0.3
+_GOAL_R_STEP    = 0.2      # smaller step: 0.3→0.2, slower expansion
 
 
 def update_curricula(env_direct: AME2DirectWrapper, runner: OnPolicyRunner, it: int) -> None:
