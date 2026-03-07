@@ -130,13 +130,13 @@ class AME2DirectEnvCfg(DirectRLEnvCfg):
     w_vel_toward_goal:      float = 1.0       # re-enabled: clamp(v_proj/2, -1, 1) — direct cos-based goal signal
     w_lin_vel_tracking:     float = 1.5       # Isaac Lab standard: exp(-||cmd_vel-vel||^2/0.25)
     w_standing_at_goal:     float = 0.1       # 5 * 0.02     [stated]
-    w_early_termination:    float = -10.0     # reduced from -100: policy was too afraid to try walking
-    w_undesired_events:     float = -0.05    # reduced from -0.2: DCMotor soft actuator → frequent body contacts
-    w_base_roll_rate:       float = -0.1      # [stated]
-    w_joint_regularization: float = -0.001    # [stated]
-    w_action_smoothness:    float = -0.05     # increased from -0.01: reduce thigh_acc (25% terminations)
-    w_link_contact_forces:  float = 0.0        # DCMotor thigh接触力太大，先禁用（LSTM原值-0.00001）
-    w_link_acceleration:    float = -0.001    # [stated]
-    w_joint_pos_limits:     float = -1.0       # reduced from paper -1000: initial noise (std=1.0) + action_scale=0.5 causes HFE limits to be hit frequently, dominating reward at -300/ep vs ~15 positive
-    w_joint_vel_limits:     float = -1.0      # [stated]
-    w_joint_torque_limits:  float = -1.0      # [stated]
+    w_early_termination:    float = -10.0     # keep: must fear falling
+    w_undesired_events:     float = 0.0       # disabled early: leaping/spinning rarely occur on flat terrain
+    w_base_roll_rate:       float = -0.02     # reduced 0.1→0.02: natural during walking, don't over-penalize
+    w_joint_regularization: float = 0.0       # disabled early: penalizes walking pose (joints deviate from default)
+    w_action_smoothness:    float = -0.05     # keep: reduces thigh_acc terminations (was 25%)
+    w_link_contact_forces:  float = 0.0       # disabled: DCMotor thigh forces too large
+    w_link_acceleration:    float = 0.0       # disabled: was penalizing body velocity magnitude (anti-movement!)
+    w_joint_pos_limits:     float = -1.0      # keep: hard safety limit
+    w_joint_vel_limits:     float = -0.2      # reduced 1.0→0.2: less aggressive, allow fast movement
+    w_joint_torque_limits:  float = -0.2      # reduced 1.0→0.2: same
