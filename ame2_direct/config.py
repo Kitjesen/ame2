@@ -160,7 +160,7 @@ class AME2DirectEnvCfg(DirectRLEnvCfg):
     w_ang_vel_xy_l2:        float = -0.1     # V42: stronger (was -0.01)
     w_joint_reg_l2:         float = -0.001
     w_action_rate_l2:       float = -0.01    # V42: stronger (was -0.0005)
-    w_link_contact_forces:  float = -0.00001 # V42: re-enabled (was 0.0)
+    w_link_contact_forces:  float = 0.0      # disabled: overwhelms all rewards on ANYmal-D
     w_link_acceleration:    float = -0.001   # V42: stronger (was -0.00002)
     w_joint_pos_limits:     float = -1000.0  # V42: hard wall (was -1.0)
     w_joint_vel_limits:     float = -1.0     # V42: stronger (was -0.02)
