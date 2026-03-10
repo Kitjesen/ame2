@@ -87,7 +87,7 @@ class AME2DirectEnv(DirectRLEnv):
         # ── Goal command buffers ──
         self._goal_pos_w   = torch.zeros(n, 2, device=dev)   # world XY
         self._goal_heading = torch.zeros(n, device=dev)       # desired yaw (world)
-        self._goal_radius  = float(cfg.goal_pos_range_init)
+        self._goal_radius  = float(cfg.goal_pos_range_max)
 
         # ── Stagnation detection ──
         self._stag_pos  = torch.zeros(n, 2, device=dev)
@@ -430,10 +430,13 @@ class AME2DirectEnv(DirectRLEnv):
         rew += cfg.w_action_rate_l2 * r_smooth
         self._ep_sums["action_rate_l2"] += cfg.w_action_rate_l2 * r_smooth
 
-        # link_contact_forces (disabled, weight=0)
+        # link_contact_forces — Paper Table I: ||max(F_con - G, 0)||²
+        # G = robot weight. ANYmal-D ≈ 50kg → G ≈ 490N.
+        # Only penalize contact forces EXCEEDING the robot's weight (impacts/crashes).
+        _robot_weight = 50.0 * 9.81  # ~490N
         nf_forces = self._contact_sensor.data.net_forces_w_history[:, 0, self._non_foot_cs_ids, :]  # (N, nf, 3)
         fmag      = torch.norm(nf_forces, dim=-1)                          # (N, nf)
-        excess    = torch.clamp(fmag - 1.0, min=0.0)                      # >1N contact = undesired
+        excess    = torch.clamp(fmag - _robot_weight, min=0.0)             # >G contact
         r_lfc     = excess.square().sum(1)
         rew += cfg.w_link_contact_forces * r_lfc
         self._ep_sums["link_contact"] += cfg.w_link_contact_forces * r_lfc
@@ -663,18 +666,18 @@ class AME2DirectEnv(DirectRLEnv):
         self._update_terrain_curriculum(env_ids, terminal_d_xy)
 
         # ── Episode logging ──
-        self._log_episode_stats(env_ids)
+        self._log_episode_stats(env_ids, terminal_d_xy)
 
     def _resample_goals(self, env_ids: torch.Tensor,
                         base_xy: torch.Tensor | None = None) -> None:
         n   = len(env_ids)
         dev = self.device
-        r   = self._goal_radius
+        r_max = self._goal_radius
+        r_min = self.cfg.goal_pos_range_min
 
-        # Annulus sampling: [r_min, r_max] uniform area — avoids trivial at-goal rewards.
-        # With full-disk sampling (old), 39% of goals land within 0.5m (at-goal threshold).
-        r_min = min(0.5, r * 0.5)   # at least half r if goal_radius < 1m
-        r_sq  = r**2 - r_min**2
+        # Annulus sampling: [r_min, r_max] uniform area.
+        # Paper: "average starting distance is 4m" (Sec.IV-D.3)
+        r_sq  = r_max**2 - r_min**2
         dist  = torch.sqrt(torch.rand(n, device=dev) * r_sq + r_min**2)
         angle = torch.rand(n, device=dev) * 2 * math.pi
         dx    = dist * torch.cos(angle)
@@ -704,7 +707,8 @@ class AME2DirectEnv(DirectRLEnv):
         move_down = (terminal_d_xy > 1.0) & ~move_up
         self._terrain.update_env_origins(env_ids, move_up, move_down)
 
-    def _log_episode_stats(self, env_ids: torch.Tensor) -> None:
+    def _log_episode_stats(self, env_ids: torch.Tensor,
+                           terminal_d_xy: torch.Tensor | None = None) -> None:
         """Log per-episode reward sums to self.extras."""
         if not hasattr(self, "extras"):
             return
@@ -715,6 +719,13 @@ class AME2DirectEnv(DirectRLEnv):
             avg = buf[env_ids].mean() / max(self.max_episode_length_s, 1.0)
             self.extras["log"][f"Episode_Reward/{key}"] = avg.item()
             self._ep_sums[key][env_ids] = 0.0
+
+        if terminal_d_xy is not None and len(terminal_d_xy) > 0:
+            td = terminal_d_xy.detach()
+            self.extras["log"]["Episode_Goal/terminal_dxy_mean"] = td.mean().item()
+            self.extras["log"]["Episode_Success/pos_0.25m"] = (td < 0.25).float().mean().item()
+            self.extras["log"]["Episode_Success/pos_0.50m"] = (td < 0.50).float().mean().item()
+            self.extras["log"]["Episode_Success/pos_1.00m"] = (td < 1.00).float().mean().item()
 
         terrain_lv = self.get_terrain_level()
         self.extras["log"]["Curriculum/terrain_level"] = terrain_lv
@@ -876,8 +887,8 @@ class AME2DirectEnv(DirectRLEnv):
         self.scan_noise_scale = float(scale)
 
     def set_goal_radius(self, radius: float) -> None:
-        """Expand goal sampling radius (goal distance curriculum)."""
-        self._goal_radius = float(max(self.cfg.goal_pos_range_init, min(radius, self.cfg.goal_pos_range_max)))
+        """Set goal sampling radius."""
+        self._goal_radius = float(max(self.cfg.goal_pos_range_min, min(radius, self.cfg.goal_pos_range_max)))
 
     def get_terrain_level(self) -> float:
         if hasattr(self._terrain, "terrain_levels"):
