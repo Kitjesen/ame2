@@ -840,20 +840,21 @@ class AME2DirectEnv(DirectRLEnv):
         """[clip(d_xy, 2.0), sin(d_yaw), cos(d_yaw)] — AME-2 compressed command.
 
         d_yaw = goal_heading - robot_yaw (signed heading error).
-        When d_xy > 2m, yaw command is randomized for actor (AME-2 Sec.IV-D trick):
-        the actor cannot rely on heading for navigation when far from goal,
-        forcing it to learn walking from the value function (critic has full x_rel, y_rel).
+        V50: When d>2m, actor gets noisy-but-directional yaw (true + N(0,1) noise)
+        instead of pure random. This breaks the critic-can't-learn dead loop while
+        still preventing the actor from relying on precise heading when far.
         """
         gxy     = self._get_goal_xy_body()          # (N, 2) in body frame
         d_xy    = torch.norm(gxy, dim=1)
         d_yaw   = self._get_d_yaw_signed()          # (N,) signed heading error
 
-        # When far from goal, randomize actor's yaw command (critic keeps true value)
+        # V50: noisy direction hint when far (was pure random → actor had zero direction info)
         far_mask = d_xy > 2.0
         d_yaw_cmd = d_yaw.clone()
         n_far = far_mask.sum().item()
         if n_far > 0:
-            d_yaw_cmd[far_mask] = (torch.rand(int(n_far), device=self.device) * 2 * math.pi - math.pi)
+            noise = torch.randn(int(n_far), device=self.device) * 1.0  # ~57° std
+            d_yaw_cmd[far_mask] = d_yaw[far_mask] + noise
 
         return torch.stack([d_xy.clamp(max=2.0), d_yaw_cmd.sin(), d_yaw_cmd.cos()], dim=1)
 
