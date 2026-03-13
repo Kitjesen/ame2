@@ -355,8 +355,9 @@ class AME2DirectEnv(DirectRLEnv):
         #   Rewards getting closer to goal each step. Constant gradient at any distance.
         #   Uses _reward_d_prev buffer (updated here, reset in _reset_idx).
         #   step() order: dones → rewards → reset → obs, so this buffer is self-consistent.
-        #   clamp(0, 0.1): only reward approaching (0.1m cap = 5m/s, well above ANYmal max ~2m/s)
-        r_approach = torch.clamp(self._reward_d_prev - d_xy, 0.0, 0.1)
+        #   V51: symmetric clamp(-0.1, 0.1): reward approaching, penalize retreating.
+        #   Walking away had zero penalty before → no direction signal.
+        r_approach = torch.clamp(self._reward_d_prev - d_xy, -0.1, 0.1)
         self._reward_d_prev[:] = d_xy.detach()
         rew += cfg.w_position_approach * r_approach
         self._ep_sums["position_approach"] += cfg.w_position_approach * r_approach
@@ -837,26 +838,16 @@ class AME2DirectEnv(DirectRLEnv):
         )
 
     def _get_actor_cmd(self) -> torch.Tensor:
-        """[clip(d_xy, 2.0), sin(d_yaw), cos(d_yaw)] — AME-2 compressed command.
+        """[clip(d_xy, 5.0), sin(d_yaw), cos(d_yaw)] — V51: precise direction.
 
-        d_yaw = goal_heading - robot_yaw (signed heading error).
-        V50: When d>2m, actor gets noisy-but-directional yaw (true + N(0,1) noise)
-        instead of pure random. This breaks the critic-can't-learn dead loop while
-        still preventing the actor from relying on precise heading when far.
+        V51: removed yaw noise (broke PPO consistency), expanded d_xy clamp to 5.0.
+        Heading randomness should come from heading curriculum, not obs noise.
         """
         gxy     = self._get_goal_xy_body()          # (N, 2) in body frame
         d_xy    = torch.norm(gxy, dim=1)
         d_yaw   = self._get_d_yaw_signed()          # (N,) signed heading error
 
-        # V50: noisy direction hint when far (was pure random → actor had zero direction info)
-        far_mask = d_xy > 2.0
-        d_yaw_cmd = d_yaw.clone()
-        n_far = far_mask.sum().item()
-        if n_far > 0:
-            noise = torch.randn(int(n_far), device=self.device) * 1.0  # ~57° std
-            d_yaw_cmd[far_mask] = d_yaw[far_mask] + noise
-
-        return torch.stack([d_xy.clamp(max=2.0), d_yaw_cmd.sin(), d_yaw_cmd.cos()], dim=1)
+        return torch.stack([d_xy.clamp(max=5.0), d_yaw.sin(), d_yaw.cos()], dim=1)
 
     def _get_d_yaw_signed(self) -> torch.Tensor:
         """Signed heading error: goal_heading - robot_yaw, wrapped to [-pi, pi]."""

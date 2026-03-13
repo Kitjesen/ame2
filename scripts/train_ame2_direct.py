@@ -106,7 +106,7 @@ def make_runner_cfg(seed: int, log_dir: str, device: str) -> dict:
             clip_param=0.2,
             entropy_coef=0.004,          # Paper Table VI: 0.004→0.001 (decay handled by update_curricula)
             num_learning_epochs=4,       # Paper Table VI (was 2)
-            num_mini_batches=16,         # Paper: 3 (OOM on 3090 24GB, use 16)
+            num_mini_batches=8,          # V51: 16→8, batch 6144 (2x gradient quality; 4 OOMs)
             learning_rate=1e-3,
             schedule="adaptive",
             gamma=0.99,                  # Paper Table VI
@@ -212,7 +212,7 @@ def main():
     print(f"  episode={env_cfg.episode_length_s}s  "
           f"goal=[{env_cfg.goal_pos_range_min}, {env_cfg.goal_pos_range_max}]m  "
           f"v_min={env_cfg.moving_to_goal_v_min}")
-    print(f"  PPO: epochs=4  mini_batches=16  entropy=0.004→0.001")
+    print(f"  PPO: epochs=4  mini_batches=8  entropy=0.004→0.001")
     print(f"  Rewards (pre-dt): pos={env_cfg.w_position_tracking:.0f} arrival={env_cfg.w_arrival:.0f} "
           f"vel={env_cfg.w_vel_toward_goal:.0f} move={env_cfg.w_moving_to_goal:.0f} "
           f"appr={env_cfg.w_position_approach:.0f} undes={env_cfg.w_undesired_contacts:.0f}")
