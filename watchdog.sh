@@ -9,7 +9,8 @@
 # The watchdog:
 #   1. Finds the latest model_*.pt checkpoint in LOG_DIR
 #   2. Passes --resume <ckpt> so no training progress is lost on crash
-#   3. Loops until exit 0 or STOP_TRAINING file appears
+#   3. Loops until STOP_TRAINING file appears (exit 0 is NOT a stop — Isaac Sim
+#      exits 0 even on CUDA/PhysX crashes, so we always restart)
 
 GPU=${1:-7}
 SEED=${2:-570}
@@ -57,12 +58,12 @@ while true; do
   EXIT=$?
   echo "[$(date)] Run $run exited with code $EXIT" >> "$CRASH_LOG"
 
-  # Clean exit or manual stop
-  if [ $EXIT -eq 0 ] || [ -f "$BASE/STOP_TRAINING" ]; then
-    echo "[$(date)] Done or stop requested. Exiting watchdog." >> "$CRASH_LOG"
+  # Only stop on manual request — Isaac Sim exits 0 even on CUDA crashes
+  if [ -f "$BASE/STOP_TRAINING" ]; then
+    echo "[$(date)] Stop requested. Exiting watchdog." >> "$CRASH_LOG"
     break
   fi
 
-  echo "[$(date)] Crash (exit=$EXIT), restarting in 30s..." >> "$CRASH_LOG"
+  echo "[$(date)] Exited (code=$EXIT), restarting in 30s..." >> "$CRASH_LOG"
   sleep 30
 done

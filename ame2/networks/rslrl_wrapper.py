@@ -339,11 +339,17 @@ class AME2ActorCritic(nn.Module):
     # ------------------------------------------------------------------
 
     def _get_std(self) -> torch.Tensor:
-        """Get current action std from parameters."""
+        """Get current action std from parameters.
+
+        Floor of 0.2 prevents noise collapse (stand-still local optima).
+        Ceiling of 0.5 prevents entropy bonus from pushing std up (V52c fix):
+        with std>0.5 the return variance is too high for the critic to learn,
+        causing value loss to explode 100x.
+        """
         if self.noise_std_type == "scalar":
-            return self.std
+            return torch.clamp(self.std, min=0.2, max=0.5)
         else:
-            return torch.exp(self.log_std)
+            return torch.clamp(torch.exp(self.log_std), min=0.2, max=0.5)
 
     def _forward_actor(self, obs) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Run actor policy on obs TensorDict.

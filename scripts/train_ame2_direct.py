@@ -89,7 +89,7 @@ def make_runner_cfg(seed: int, log_dir: str, device: str) -> dict:
     cfg = RslRlOnPolicyRunnerCfg(
         seed=seed,
         device=device,
-        num_steps_per_env=24,            # Paper Table VI
+        num_steps_per_env=24,            # Paper Table VI (V52b: restored, use mini_batches=6)
         max_iterations=args_cli.max_iterations,
         save_interval=999999,
         experiment_name="ame2_v46",
@@ -101,12 +101,12 @@ def make_runner_cfg(seed: int, log_dir: str, device: str) -> dict:
             activation="elu",
         ),
         algorithm=RslRlPpoAlgorithmCfg(
-            value_loss_coef=1.0,
+            value_loss_coef=2.0,             # V52: 1→2, strengthen critic training
             use_clipped_value_loss=True,
             clip_param=0.2,
             entropy_coef=0.004,          # Paper Table VI: 0.004→0.001 (decay handled by update_curricula)
             num_learning_epochs=4,       # Paper Table VI (was 2)
-            num_mini_batches=8,          # V51: 16→8, batch 6144 (2x gradient quality; 4 OOMs)
+            num_mini_batches=6,          # V52b: batch=8192 (same VRAM as steps=16/mb=4, but 50% more data)
             learning_rate=1e-3,
             schedule="adaptive",
             gamma=0.99,                  # Paper Table VI
@@ -181,6 +181,7 @@ def main():
         num_actions=12,
         ame2_cfg=policy_cfg,
         is_student=False,
+        init_noise_std=0.5,              # V52d: 0.5, capped at 0.5 in wrapper (enough explore, stable critic)
     ).to(device)
 
     # ── Runner ──
@@ -212,7 +213,7 @@ def main():
     print(f"  episode={env_cfg.episode_length_s}s  "
           f"goal=[{env_cfg.goal_pos_range_min}, {env_cfg.goal_pos_range_max}]m  "
           f"v_min={env_cfg.moving_to_goal_v_min}")
-    print(f"  PPO: epochs=4  mini_batches=8  entropy=0.004→0.001")
+    print(f"  PPO: epochs=4  mini_batches=6  steps=24  vloss_coef=2.0  entropy=0.004→0.001")
     print(f"  Rewards (pre-dt): pos={env_cfg.w_position_tracking:.0f} arrival={env_cfg.w_arrival:.0f} "
           f"vel={env_cfg.w_vel_toward_goal:.0f} move={env_cfg.w_moving_to_goal:.0f} "
           f"appr={env_cfg.w_position_approach:.0f} undes={env_cfg.w_undesired_contacts:.0f}")

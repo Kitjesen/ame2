@@ -394,7 +394,7 @@ class AME2DirectEnv(DirectRLEnv):
 
         # 2. heading_tracking Eq.(3)
         d_yaw = self._get_d_yaw()
-        r_head = (1.0/(1.0+d_yaw**2)) * self._t_mask(2.0) * (d_xy<0.5).float()
+        r_head = (1.0/(1.0+d_yaw**2)) * self._t_mask(2.0) * torch.sigmoid((0.5 - d_xy) * 10.0)  # V55b: soft gate
         rew += cfg.w_heading_tracking * r_head
         self._ep_sums["heading_tracking"] += cfg.w_heading_tracking * r_head
 
@@ -404,12 +404,12 @@ class AME2DirectEnv(DirectRLEnv):
         to_goal = goal_xy_b / (d_xy.unsqueeze(1) + 1e-8)   # unit direction to goal
         v_proj  = (vel_xy * to_goal).sum(1)                  # ||v||·cos(θ) in m/s
         v_min   = cfg.moving_to_goal_v_min                   # Paper: 0.3 m/s
-        r_move  = torch.relu(v_proj - v_min) * (d_xy > 0.5).float()
+        r_move  = torch.relu(v_proj - v_min) * torch.sigmoid((d_xy - 0.5) * 10.0)  # V55b: soft gate
         rew += cfg.w_moving_to_goal * r_move
         self._ep_sums["moving_to_goal"] += cfg.w_moving_to_goal * r_move
 
         # 4. vel_toward_goal (disabled, w=0)
-        r_vel  = torch.clamp(v_proj/2.0, -1.0, 1.0) * (d_xy>=0.5).float()
+        r_vel  = torch.clamp(v_proj/2.0, -1.0, 1.0)  # V54: removed d>=0.5 gate
         rew += cfg.w_vel_toward_goal * r_vel
         self._ep_sums["vel_toward_goal"] += cfg.w_vel_toward_goal * r_vel
 
@@ -885,7 +885,7 @@ class AME2DirectEnv(DirectRLEnv):
     def _standing_at_goal_reward(self, d_xy, d_yaw) -> torch.Tensor:
         """Paper Eq.(5): exp(-4·||v||²) · I(d<0.5) · I(d_yaw<0.5) · I(t_left<2s)."""
         vel_sq = self._robot.data.root_lin_vel_b.square().sum(1)  # ||v||² (3D)
-        gate   = ((d_xy < 0.5) & (d_yaw < 0.5)).float() * self._t_mask(2.0)
+        gate   = torch.sigmoid((0.5 - d_xy) * 10.0) * (d_yaw < 0.5).float() * self._t_mask(2.0)  # V55b: soft gate
         return torch.exp(-4.0 * vel_sq) * gate
 
     def _undesired_events(self) -> torch.Tensor:
