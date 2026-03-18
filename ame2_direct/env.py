@@ -324,10 +324,19 @@ class AME2DirectEnv(DirectRLEnv):
         d_xy      = torch.norm(goal_xy_b, dim=1)
 
         # 1. position_tracking — Paper Eq.(1): 1/(1+0.25*d²)
-        #    V49: _t_mask removed (was T=4s → only last 200/1000 steps active).
-        #    80% of episode had ZERO position reward → robot learned "stand still".
-        #    Now always-on; approach reward provides walking incentive.
-        r_pos = (1.0 / (1.0 + 0.25 * d_xy**2))
+        #    V59: optional terminal window (cfg.terminal_reward_window_s > 0).
+        #    RSL paper (Zhang et al. 2024): pos_tracking only when t > T - T_r.
+        #    Forces robot to reach goal by end of episode; kills "stay-at-4m" exploit.
+        #    V49 failure (T=4s/20s=20%): ratio too low + no direction signals in "off" phase.
+        #    V59 design: T=5s/10s=50% ratio + pos_approach/vtg/move always on for direction.
+        #    Backward compat: terminal_reward_window_s=0 → always-on (V43-V58 behavior).
+        r_pos_shape = (1.0 / (1.0 + 0.25 * d_xy**2))
+        if cfg.terminal_reward_window_s > 0:
+            T_r_steps = max(1, round(cfg.terminal_reward_window_s / (self.physics_dt * cfg.decimation)))
+            pos_t_mask = (self.max_episode_length - self.episode_length_buf <= T_r_steps).float()
+        else:
+            pos_t_mask = torch.ones(self.num_envs, device=self.device)
+        r_pos = r_pos_shape * pos_t_mask
         rew += cfg.w_position_tracking * r_pos
         self._ep_sums["position_tracking"] += cfg.w_position_tracking * r_pos
 

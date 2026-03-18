@@ -138,6 +138,7 @@ class AME2DirectEnvCfg(DirectRLEnvCfg):
 
     # ── Env ─────────────────────────────────────────────────────────────────
     episode_length_s:  float = 20.0    # Paper: avg goal dist 4m, needs time
+    terminal_reward_window_s: float = 0.0  # V59: pos_tracking only in last N seconds (0=always on)
     decimation:        int   = 4       # 50 Hz control                [stated]
     action_scale:      float = 0.5     # joint targets = default + scale*action
 

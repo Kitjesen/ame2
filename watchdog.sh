@@ -39,9 +39,6 @@ while true; do
 
   ARGS="--num_envs 2048 --max_iterations 80000 --seed $SEED"
   ARGS="$ARGS --log_dir $LOG_DIR --headless"
-  # V57 config: appr=8 matches V54b (best proven run), vtg=10 adds direction gradient
-  ARGS="$ARGS --w_position_approach 8"
-  ARGS="$ARGS --w_vel_toward_goal 10"
   ARGS="$ARGS $EXTRA_ARGS"
 
   if [ -n "$CKPT" ]; then

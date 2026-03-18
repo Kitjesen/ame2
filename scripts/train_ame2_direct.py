@@ -48,6 +48,12 @@ for _wn in [
     "w_joint_pos_limits", "w_joint_vel_limits", "w_joint_torque_limits",
 ]:
     parser.add_argument(f"--{_wn}", type=float, default=None)
+parser.add_argument("--episode_length_s", type=float, default=None,
+                    help="Episode length in seconds (default: 20s from env config)")
+parser.add_argument("--terminal_reward_window_s", type=float, default=None,
+                    help="V59: pos_tracking only in last N seconds (0=always on, default)")
+parser.add_argument("--anti_stagnation_decay_iter", type=int, default=150,
+                    help="Zero out anti_stagnation after this many iters (RSL paper: 150)")
 args_cli, _ = parser.parse_known_args()
 
 if not hasattr(args_cli, "headless"):
@@ -151,6 +157,11 @@ def update_curricula(env_direct: AME2DirectWrapper, runner: OnPolicyRunner, it: 
     entropy = _ENTROPY_START + (_ENTROPY_END - _ENTROPY_START) * frac
     runner.alg.entropy_coef = entropy
 
+    # ── 4. Anti_stagnation decay: zero out after N iters (RSL paper: first 150 only) ──
+    if it == args_cli.anti_stagnation_decay_iter:
+        env_direct.env.cfg.w_anti_stagnation = 0.0
+        print(f"[Curriculum] it={it}: w_anti_stagnation zeroed (RSL: kickstart only)")
+
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
@@ -163,7 +174,13 @@ def main():
     policy_cfg.d_prop_critic = 55
     env_cfg = AME2DirectEnvCfg()
     env_cfg.scene.num_envs = args_cli.num_envs
-    # ── Apply CLI reward overrides (before env __init__ scales by dt) ──
+    # ── Apply CLI overrides (before env __init__) ──
+    if args_cli.episode_length_s is not None:
+        env_cfg.episode_length_s = args_cli.episode_length_s
+        print(f"  [Override] episode_length_s = {args_cli.episode_length_s}")
+    if args_cli.terminal_reward_window_s is not None:
+        env_cfg.terminal_reward_window_s = args_cli.terminal_reward_window_s
+        print(f"  [Override] terminal_reward_window_s = {args_cli.terminal_reward_window_s}")
     for attr_name in dir(env_cfg):
         if attr_name.startswith('w_') and isinstance(getattr(env_cfg, attr_name), (int, float)):
             val = getattr(args_cli, attr_name, None)
@@ -210,7 +227,9 @@ def main():
     print(f"\n[AME-2 V43 Paper-Faithful]")
     print(f"  envs={args_cli.num_envs}  iters={args_cli.max_iterations}  "
           f"seed={args_cli.seed}  device={device}")
+    tw = env_cfg.terminal_reward_window_s
     print(f"  episode={env_cfg.episode_length_s}s  "
+          f"terminal_window={tw}s({'always-on' if tw == 0 else f'last {tw}s'})  "
           f"goal=[{env_cfg.goal_pos_range_min}, {env_cfg.goal_pos_range_max}]m  "
           f"v_min={env_cfg.moving_to_goal_v_min}")
     print(f"  PPO: epochs=4  mini_batches=6  steps=24  vloss_coef=2.0  entropy=0.004→0.001")
