@@ -54,7 +54,7 @@ CUDA_VISIBLE_DEVICES=7 python -u scripts/train_thunder_mid360.py \
 
 `--terrain rough` 使用现有 Thunder 起伏/台阶地形。`--resume` 恢复该新入口生成的 PPO 检查点，不能直接加载旧 ANYmal 或其他 Thunder 网络结构的权重。建图检查点必须与扫描外参、范围、频率和格网一致。
 
-上面的 `mapping_smoke.pt` 是旧夹具实验权重，只用于接入验证。正式长训之前仍需完成 MID-360 多地形建图训练、独立地形验证及误差/方差校准，再选择教师蒸馏或直接非对称 PPO 路线；当前入口尚无教师动作蒸馏。
+上面的 `mapping_smoke.pt` 是旧夹具实验权重，只用于接入验证。[后续监督建图实验](mid360_mapping_training.md)已经使用不同地形块进行训练和评价，仍暴露前方盲区与补全误差。正式长训之前需要解决这些问题并完成误差/方差校准，再选择教师蒸馏或直接非对称 PPO 路线；当前入口尚无教师动作蒸馏。
 
 ## 验证边界
 
