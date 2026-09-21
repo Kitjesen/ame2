@@ -1,0 +1,115 @@
+{
+  "status": "integration_assertions_passed_shutdown_timeout",
+  "process_exit_code": 124,
+  "shutdown_note": "Result and checkpoint checks completed before timeout during simulator shutdown.",
+  "task": "PoseRoughV4",
+  "terrain": "plane",
+  "num_envs": 4,
+  "control_dt_s": 0.02,
+  "scan_hz": 10,
+  "samples_per_scan": 20000,
+  "joint_order": [
+    "fr_hip_joint",
+    "fr_thigh_joint",
+    "fr_calf_joint",
+    "fl_hip_joint",
+    "fl_thigh_joint",
+    "fl_calf_joint",
+    "rr_hip_joint",
+    "rr_thigh_joint",
+    "rr_calf_joint",
+    "rl_hip_joint",
+    "rl_thigh_joint",
+    "rl_calf_joint",
+    "fr_foot_joint",
+    "fl_foot_joint",
+    "rr_foot_joint",
+    "rl_foot_joint"
+  ],
+  "action_dim": 16,
+  "observation_shapes": {
+    "map": [
+      4,
+      4,
+      40,
+      48
+    ],
+    "history": [
+      4,
+      20,
+      54
+    ],
+    "commands": [
+      4,
+      3
+    ],
+    "map_teacher": [
+      4,
+      3,
+      40,
+      48
+    ],
+    "critic_prop": [
+      4,
+      60
+    ],
+    "contact": [
+      4,
+      17
+    ]
+  },
+  "scan_updates": 10,
+  "environment_resets": 1,
+  "point_count_columns": [
+    "rays",
+    "nonself_returns",
+    "self_occluded_rays",
+    "map_returns",
+    "observed_cells"
+  ],
+  "mean_counts": [
+    20000.0,
+    10209.800000000001,
+    3271.375,
+    7123.025000000001,
+    864.825
+  ],
+  "min_counts": [
+    20000.0,
+    8227.0,
+    2423.0,
+    5474.0,
+    613.0
+  ],
+  "max_counts": [
+    20000.0,
+    12501.0,
+    4084.0,
+    9727.0,
+    1264.0
+  ],
+  "ppo_losses": [
+    {
+      "value": 0.6863220185041428,
+      "surrogate": 0.039578959345817566,
+      "entropy": -3.0452765822410583
+    },
+    {
+      "value": 0.496393620967865,
+      "surrogate": -0.009049247950315475,
+      "entropy": -3.0406993627548218
+    }
+  ],
+  "map_encoder_updated": true,
+  "mapper_frozen": true,
+  "actor_privileged_independence": true,
+  "checkpoint_reload_equal": true,
+  "partial_reset_verified": true,
+  "mapping_checkpoint_status": "fixture smoke only, not deployment weights",
+  "limitations": [
+    "Bounded PPO integration, no trained walking skill or teacher distillation",
+    "Uses simulation poses; no within-scan motion distortion or real odometry errors",
+    "Front LiDAR optical axes are not independently calibrated on hardware",
+    "Mapper remains fixture-trained; map generalization/uncertainty not validated"
+  ]
+}
