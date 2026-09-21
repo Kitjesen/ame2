@@ -1,0 +1,38 @@
+{
+  "assumption": "CAD link axes equal Livox measurement axes; not independently calibrated",
+  "base_height_m": 0.5,
+  "sensor_world_position_m": [
+    0.402876074867229,
+    0.0,
+    0.5582019450665819
+  ],
+  "sensor_positive_z_in_base": [
+    0.7071067811865475,
+    1.2246467991473532e-16,
+    -0.7071067811865476
+  ],
+  "upper_blind_cone_half_angle_deg": 38,
+  "targets": [
+    {
+      "x_from_base_m": 0.5,
+      "required_sensor_elevation_deg": 54.87032271302955,
+      "inside_nominal_fov": false
+    },
+    {
+      "x_from_base_m": 1.0,
+      "required_sensor_elevation_deg": 88.07048198192219,
+      "inside_nominal_fov": false
+    },
+    {
+      "x_from_base_m": 2.0,
+      "required_sensor_elevation_deg": 64.26474878012701,
+      "inside_nominal_fov": false
+    }
+  ],
+  "excludes": [
+    "robot occlusion",
+    "range noise",
+    "sparse scan pattern",
+    "neural network"
+  ]
+}

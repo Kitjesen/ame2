@@ -10,6 +10,16 @@
 
 这轮采集是静态姿态下的射线快照，不是运动中的 100 ms 连续扫描。地形查询最大距离为 10 m；反射率、光斑、多径、帧内运动畸变和真实里程计误差均未建模。
 
+### 朝下安装与仿真空白的区别
+
+MID-360 的水平 360°、垂直 −7°～52° 是一个宽广的三维视场，里面采用非重复扫描，**不是只有一圈扫描线**。延长积分时间能提高这个视场内的采样覆盖，但不会把垂直边界延伸到 +90°。官方《Livox Mid-360 User Manual v1.2》的 Product Characteristics、Effective FOV Range 图对此分别说明；[厂家手册镜像](https://www.sachtleben-technology.com/assets/downloads/livox-mid-360-user-manual.pdf)。
+
+当前配置 roll=−180°、pitch=−45° 把测量坐标的 +Z 变成机体中的 `[0.707, 0, −0.707]`。这根轴朝前下方，但轴本身位于顶部未扫描锥体中心；名义锥体半角为 90°−52°=38°。`scripts/audit_mid360_fov.py` 不使用网络、点云稀疏性或机身遮挡，直接计算平地到雷达的方向：基座高 0.5 m 时，前方 0.5/1/2 m 地面分别需要雷达坐标内 54.87°/88.07°/64.26° 仰角，均超过 52°。这解释了**当前仿真假设**中的前方中央空白。[计算结果](mid360_fov_audit_20260922.json)。
+
+代码检查未发现此路径把安装旋转施加两次：pattern 先转到连杆坐标，随后只应用机器人基座姿态。现有 CAD/MJCF 传感器连杆、机器人配置与训练配置使用同一外参；但从 CAD 连杆到 Livox 测量坐标的独立标定关系未得到验证。**不能凭仿真空白判定实机安装错误，也不能为了消掉空白擅改物理外参。** 先对齐厂家测量坐标、模型连杆和实际安装，再验证覆盖；本轮训练结果保持为该明确假设下的实验。
+
+![当前坐标假设下的平地可观测性](assets/mid360_fov_audit.png)
+
 ## 输入、网络与数据
 
 数据路径：Thunder V4 原安装外参 → 保存的 MID-360 方向序列 → 地形和整机视觉网格的第一命中距离 → 删除被机身挡住的远处回波 → 距离噪声/丢点 → 重力对齐坐标 → 5 cm 格网内取最高点。
@@ -85,6 +95,7 @@ python scripts/train_mid360_mapping.py --device cuda:0 --steps 6000 \
 python scripts/train_mid360_mapping.py --device cuda:0 --steps 6000 \
   --model lidar-context --output artifacts/mapping_training/context
 python -m pytest scripts/test_mid360_training.py -q
+python scripts/audit_mid360_fov.py
 ```
 
 数据位于 `artifacts/mapping_training/dataset.pt`，原架构权重位于 `artifacts/mapping_training/run/mapping_best.pt`；结构对照权重位于 `artifacts/mapping_training/context/mapping_best.pt`。产物目录不进入 Git；源代码、指标和预览图纳入仓库。
