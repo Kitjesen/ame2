@@ -1,0 +1,70 @@
+{
+  "status": "passed",
+  "torch": "2.7.0+cu128",
+  "gpu": "NVIDIA GeForce RTX 3090",
+  "num_envs": 4,
+  "scans": 30,
+  "rays_per_env_scan": 20000,
+  "grid_shape_y_x": [
+    40,
+    48
+  ],
+  "policy_shape": [
+    4,
+    4,
+    40,
+    48
+  ],
+  "channels": [
+    "x_m",
+    "y_m",
+    "z_m",
+    "height_variance_m2"
+  ],
+  "flat_max_error_m": 5.960464477539062e-07,
+  "valid_rays_mean_per_fixture": [
+    11149.6669921875,
+    12511.5673828125,
+    10310.5673828125,
+    17244.400390625
+  ],
+  "single_scan_coverage_mean": [
+    0.5234375,
+    0.6219444870948792,
+    0.4474826455116272,
+    0.4294270873069763
+  ],
+  "history_measured_coverage": [
+    0.5536458492279053,
+    0.7588542103767395,
+    0.4593750238418579,
+    0.43541669845581055
+  ],
+  "sensor_and_projection_ms_median": 21.980518009513617,
+  "mapping_steps": 300,
+  "mapping_before": {
+    "height_mae_m": 0.38257884979248047,
+    "observed_mae_m": 0.25479596853256226,
+    "unobserved_mae_m": 0.513278603553772,
+    "mean_sigma_m": 1.0799164772033691,
+    "within_2sigma_fraction": 1.0
+  },
+  "mapping_after": {
+    "height_mae_m": 0.1252049207687378,
+    "observed_mae_m": 0.045162007212638855,
+    "unobserved_mae_m": 0.20707498490810394,
+    "mean_sigma_m": 0.13641226291656494,
+    "within_2sigma_fraction": 0.9435619115829468
+  },
+  "mapping_training_seconds": 3.9417863585986197,
+  "torch_peak_allocated_mib": 84.4873046875,
+  "checkpoint_reload_equal": true,
+  "student_forward_backward_finite": true,
+  "limitations": [
+    "Mounting-extrinsic fixtures; no articulated Thunder mesh or hardware evidence",
+    "Single pose per scan; no simulated within-scan motion distortion",
+    "Held-out scan windows share terrain fixtures; not terrain generalization",
+    "Variance calibration and a locomotion PPO rollout remain unverified",
+    "Torch memory excludes Warp and Isaac Sim allocations"
+  ]
+}

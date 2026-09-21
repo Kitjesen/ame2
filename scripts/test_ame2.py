@@ -231,7 +231,7 @@ class TestAsymmetricCritic:
         self.map_feat = torch.randn(B, self.cfg.d_map_teacher, self.cfg.map_h, self.cfg.map_w)
         # Critic uses 50D critic_prop (base_vel+hist+critic_cmd), not 48D actor prop
         self.prop = torch.randn(B, self.cfg.d_prop_critic)
-        self.contact = torch.randn(B, 4)
+        self.contact = torch.randint(0, 2, (B, 13)).float()
 
     def test_value_shape(self):
         """Critic output must be (B, 1)."""
@@ -250,8 +250,10 @@ class TestAsymmetricCritic:
 
     def test_gate_sensitivity(self):
         """Different contact states must produce different gate weights."""
-        contact_a = torch.tensor([[1.0, 1.0, 0.0, 0.0]] * B)
-        contact_b = torch.tensor([[0.0, 0.0, 1.0, 1.0]] * B)
+        contact_a = torch.zeros(B, 13)
+        contact_b = torch.zeros(B, 13)
+        contact_a[:, 9:11] = 1.0
+        contact_b[:, 11:13] = 1.0
         with torch.no_grad():
             gate_a = self.critic.gate(contact_a)
             gate_b = self.critic.gate(contact_b)

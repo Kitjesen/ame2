@@ -190,14 +190,14 @@ def _shift_map_batch(
     di: torch.Tensor,
     dj: torch.Tensor,
 ) -> torch.Tensor:
-    """Per-env shift of (B, C, H, W) via bilinear grid_sample.
+    """Shift map values while keeping local query coordinates fixed.
 
     Used to simulate mapping drift (localization error) in domain randomization
     (Sec.IV-D.3 stated).  Each environment gets an independent integer-cell offset
     (di[b], dj[b]).  Border cells are replicated at the edges (no wrap-around).
 
     Args:
-        maps: (B, C, H, W)  — map to shift (float tensor).
+        maps: (B, C, H, W) with [x,y,z] or [x,y,z,variance] channels.
         di:   (B,) int tensor — row offsets in cells (+down).
         dj:   (B,) int tensor — col offsets in cells (+right).
 
@@ -217,8 +217,18 @@ def _shift_map_batch(
     grid[:, :, :, 0] += (2.0 * dj.to(maps.dtype) / max(W - 1, 1)).view(B, 1, 1)
     grid[:, :, :, 1] += (2.0 * di.to(maps.dtype) / max(H - 1, 1)).view(B, 1, 1)
 
-    return F.grid_sample(maps, grid, mode='bilinear',
-                         align_corners=True, padding_mode='border')
+    shifted = F.grid_sample(maps[:, 2:], grid, mode='bilinear',
+                            align_corners=True, padding_mode='border')
+    return torch.cat((maps[:, :2], shifted), dim=1)
+
+
+def _corrupt_map_batch(maps, drop_fraction, variance_min):
+    """Corrupt height and variance without changing metric x/y coordinates."""
+    mask = torch.rand_like(maps[:, 2:3]) < drop_fraction
+    corrupt = maps.clone()
+    corrupt[:, 2] = torch.randn_like(maps[:, 2]) * 0.3
+    corrupt[:, 3] = variance_min + torch.rand_like(maps[:, 3]) * 9.0
+    return torch.where(mask, corrupt, maps)
 
 
 # ===================================================================
@@ -644,7 +654,7 @@ class WTAMapManager:
 
     def reset(self, env_ids: Optional[torch.Tensor] = None):
         """Reset global maps for terminated episodes."""
-        if env_ids is None or len(env_ids) == 0:
+        if env_ids is None:
             self.wta.reset()
         else:
             self.wta.reset(batch_idx=env_ids)
@@ -1121,19 +1131,24 @@ class AME2MapEnvWrapper:
     ) -> torch.Tensor:
         """Build a (B, 4, ph, pw) local-only student map from the current scan.
 
-        Used for partial-map envs.  Bilinearly interpolates the MappingNet
-        local output to policy map resolution and computes surface normals.
-
-        Channel layout matches student_map: [elev, n_x, n_y, var].
+        Resample at the physical policy coordinates; never stretch the local
+        scan over a different footprint. Channels are [x, y, z, variance].
         """
         ph = self.wta_manager.wta.policy_h
         pw = self.wta_manager.wta.policy_w
-        res = self.wta_manager.wta.global_res   # policy map cell size (0.08 m)
-
-        elev_p = F.interpolate(elev,          size=(ph, pw), mode='bilinear', align_corners=False)
-        var_p  = F.interpolate(log_var.exp(), size=(ph, pw), mode='bilinear', align_corners=False)
-        normals = WTAMapFusion._surface_normals(elev_p, res)                  # (B, 2, ph, pw)
-        return torch.cat([elev_p, normals, var_p], dim=1)                     # (B, 4, ph, pw)
+        wta = self.wta_manager.wta
+        xy = wta._policy_pts.reshape(ph, pw, 2)
+        minimum = wta._local_pts.amin(0)
+        maximum = wta._local_pts.amax(0)
+        query = 2 * (xy - minimum) / (maximum - minimum) - 1
+        inside = (query.abs() <= 1).all(-1)[None, None]
+        query = query[None].expand(elev.shape[0], -1, -1, -1)
+        elev_p = F.grid_sample(elev, query, align_corners=True)
+        var_p = F.grid_sample(log_var.exp(), query, align_corners=True)
+        elev_p = torch.where(inside, elev_p, -2.)
+        var_p = torch.where(inside, var_p, wta.INF_VAR)
+        coords = xy.permute(2, 0, 1)[None].expand(elev.shape[0], -1, -1, -1)
+        return torch.cat([coords, elev_p, var_p], dim=1)
 
     # ------------------------------------------------------------------
     # RSL-RL VecEnv interface
@@ -1330,20 +1345,10 @@ class AME2MapEnvWrapper:
             #    elevation + high uncertainty sentinel.  Forces the policy to
             #    be robust to locally corrupted map data.  [stated]
             if self._map_drop_fraction > 0.0:
-                ph, pw = student_map.shape[2], student_map.shape[3]
-                drop_mask = (
-                    torch.rand(B, ph, pw, device=self._device) < self._map_drop_fraction
-                )  # (B, H, W) boolean
-                drop_4 = drop_mask.unsqueeze(1).expand_as(student_map)  # (B, 4, H, W)
                 # [stated] Appendix B: "random values with a random variance larger than 1 m²"
-                corrupt = torch.zeros_like(student_map)
-                corrupt[:, 0] = torch.randn(B, ph, pw, device=self._device) * 0.3
-                # Variance sampled from [corrupt_var_min, corrupt_var_min + 9] m²
-                corrupt[:, 3] = (
-                    self._corrupt_var_min
-                    + torch.rand(B, ph, pw, device=self._device) * 9.0
+                student_map = _corrupt_map_batch(
+                    student_map, self._map_drop_fraction, self._corrupt_var_min
                 )
-                student_map = torch.where(drop_4, corrupt, student_map)
 
         # ── Update LSIO history ring buffer ───────────────────────────
         # Roll left by 1 step, insert newest at the end
