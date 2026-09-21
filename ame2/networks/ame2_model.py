@@ -24,6 +24,8 @@ NOT implemented (training infrastructure, not network architecture):
   - PPO runner, terrain curriculum, Isaac Lab env wrappers
 """
 
+import math
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -166,6 +168,8 @@ class MappingNet(nn.Module):
     Loss: β-NLL (β=0.5, eq.9), sample-weighted by terrain total variation (eq.10).
     """
 
+    MIN_VARIANCE = 1e-6  # Numerical floor in m^2, not a calibrated sensor model.
+
     def __init__(self, cfg: MappingConfig = MappingConfig()):
         super().__init__()
         self.cfg = cfg
@@ -202,7 +206,7 @@ class MappingNet(nn.Module):
         feat   = self.dec(torch.cat([up, skip], dim=1))           # (B, 16, H, W)
 
         raw_elev = self.head_elev(feat)                           # (B, 1, H, W)
-        log_var  = self.head_unc(feat)                            # (B, 1, H, W)
+        log_var  = self.head_unc(feat).clamp_min(math.log(self.MIN_VARIANCE))
 
         # FIX: independent gate head → sigmoid → gated combination with input
         # Paper: "Estimation Output = Gating * Raw_Estimation + (1-Gating) * Input"
@@ -226,6 +230,9 @@ class MappingNet(nn.Module):
 
         tv_weights: (B,) per-sample weights from total variation (eq. 10).
         """
+        # Exact synthetic surfaces can drive the Gaussian variance to zero.
+        # Keep the same numerical floor for standalone loss callers and forward.
+        log_var = log_var.clamp_min(math.log(MappingNet.MIN_VARIANCE))
         var = torch.exp(log_var)
         nll = log_var / 2.0 + (target - pred_elev) ** 2 / (2.0 * var)
         # sg[var^β] = sg[std] when β=0.5

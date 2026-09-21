@@ -14,6 +14,8 @@ Unofficial reimplementation of **AME-2** — goal-conditioned navigation for leg
 
 **Thunder V4 MID-360 input prototype (2026-09-22):** [Implementation, references, and GPU fixture results](docs/mid360_lidar_input.md). The new sensor path projects actual MID-360 pattern returns into `[x,y,z,variance]` maps. It has passed geometry/history/network tests and a bounded Isaac Sim 5.0 / Isaac Lab 2.2.1 experiment. Full Thunder locomotion training is not connected; substantial forward blind areas and inaccurate stair completion remain.
 
+[Front-lidar diagnosis and controlled ablations](docs/mid360_mapping_diagnosis.md): the configured orientation leaves forward ground outside the vertical FOV; identical missing local inputs make some terrain heights unidentifiable. Added a numerical variance floor after reproducing non-finite mapping loss. 38 tests and three GPU mapping runs of 1,200 steps pass; these are fixture experiments, not locomotion results.
+
 ---
 
 ## Current Results

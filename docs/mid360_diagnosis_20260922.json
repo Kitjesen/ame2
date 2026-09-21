@@ -1,0 +1,188 @@
+{
+  "pattern_elevation_min_deg": -7.212296962738037,
+  "pattern_elevation_max_deg": 52.16400146484375,
+  "analytic_isaac_match_window": 29,
+  "analytic_isaac_mask_iou": 0.9860896468162537,
+  "analytic_isaac_raw_mae_m": 0.005034942179918289,
+  "analytic_isaac_interior_max_error_m": 5.960464477539062e-07,
+  "original_mount_metrics": [
+    {
+      "coverage": 0.5234635472297668,
+      "union_coverage": 0.5536458492279053,
+      "forward_strip_coverage": 0.0,
+      "raw_observed_mae_m": 1.1579330827515832e-09,
+      "raw_edge_mae_m": null,
+      "raw_away_from_edge_mae_m": 1.1579330827515832e-09
+    },
+    {
+      "coverage": 0.6044010519981384,
+      "union_coverage": 0.7828124761581421,
+      "forward_strip_coverage": 0.0637499988079071,
+      "raw_observed_mae_m": 0.009638236835598946,
+      "raw_edge_mae_m": 0.08037866652011871,
+      "raw_away_from_edge_mae_m": 1.4685223037602668e-09
+    },
+    {
+      "coverage": 0.4475781321525574,
+      "union_coverage": 0.4593749940395355,
+      "forward_strip_coverage": 0.0,
+      "raw_observed_mae_m": 2.0027743907746753e-09,
+      "raw_edge_mae_m": 2.4574267065702315e-09,
+      "raw_away_from_edge_mae_m": 1.9858021893526256e-09
+    },
+    {
+      "coverage": 0.42298176884651184,
+      "union_coverage": 0.42916667461395264,
+      "forward_strip_coverage": 0.03333333507180214,
+      "raw_observed_mae_m": 0.008053906261920929,
+      "raw_edge_mae_m": 0.09690041095018387,
+      "raw_away_from_edge_mae_m": 1.1206513494954606e-09
+    }
+  ],
+  "counterfactual_rpy_rad": [
+    -3.141592653589793,
+    0.39269908169872414,
+    0.0
+  ],
+  "counterfactual_coverage": [
+    0.7389062643051147,
+    0.4819791615009308,
+    0.5745833516120911,
+    0.3089713454246521
+  ],
+  "counterfactual_forward_strip_coverage": [
+    0.8607291579246521,
+    0.39281249046325684,
+    0.56229168176651,
+    0.13229165971279144
+  ],
+  "counterfactual_union_forward_strip_coverage": [
+    0.9750000238418579,
+    0.40833333134651184,
+    0.675000011920929,
+    0.14166666567325592
+  ],
+  "pitch_sweep": [
+    {
+      "pitch_deg": -45,
+      "ideal_flat_strip_fov_fraction": 0.0
+    },
+    {
+      "pitch_deg": -30,
+      "ideal_flat_strip_fov_fraction": 0.15
+    },
+    {
+      "pitch_deg": -15,
+      "ideal_flat_strip_fov_fraction": 0.575
+    },
+    {
+      "pitch_deg": 0,
+      "ideal_flat_strip_fov_fraction": 0.7833333333333333
+    },
+    {
+      "pitch_deg": 15,
+      "ideal_flat_strip_fov_fraction": 0.9166666666666666
+    },
+    {
+      "pitch_deg": 22.5,
+      "ideal_flat_strip_fov_fraction": 0.975
+    },
+    {
+      "pitch_deg": 30,
+      "ideal_flat_strip_fov_fraction": 0.8
+    },
+    {
+      "pitch_deg": 45,
+      "ideal_flat_strip_fov_fraction": 0.4
+    }
+  ],
+  "receptive_field": {
+    "query_cell_y_x": [
+      20,
+      32
+    ],
+    "support_y_x": [
+      13,
+      13
+    ],
+    "support_min_y_x": [
+      13,
+      25
+    ],
+    "support_max_y_x": [
+      25,
+      37
+    ],
+    "flat_downstairs_support_max_input_difference_m": 0.0,
+    "flat_downstairs_query_truth_difference_m": 0.36000001430511475,
+    "flat_downstairs_predicted_difference_m": 0.0
+  },
+  "training": {
+    "current_sparse": [
+      {
+        "mae_m": 0.10237682610750198,
+        "observed_mae_m": 0.029369479045271873,
+        "unobserved_mae_m": 0.17521008849143982,
+        "edge_mae_m": 0.1867986023426056,
+        "forward_strip_mae_m": 0.16824160516262054,
+        "mean_sigma_m": 0.14499641954898834,
+        "steps": 300
+      },
+      {
+        "mae_m": 0.08403965830802917,
+        "observed_mae_m": 0.014608395285904408,
+        "unobserved_mae_m": 0.15330538153648376,
+        "edge_mae_m": 0.12302908301353455,
+        "forward_strip_mae_m": 0.14862753450870514,
+        "mean_sigma_m": 0.10976988822221756,
+        "steps": 1200
+      }
+    ],
+    "counterfactual_sparse": [
+      {
+        "mae_m": 0.08698591589927673,
+        "observed_mae_m": 0.047842804342508316,
+        "unobserved_mae_m": 0.1306636929512024,
+        "edge_mae_m": 0.1526789367198944,
+        "forward_strip_mae_m": 0.09911482036113739,
+        "mean_sigma_m": 0.13201890885829926,
+        "steps": 300
+      },
+      {
+        "mae_m": 0.06431981176137924,
+        "observed_mae_m": 0.01900976151227951,
+        "unobserved_mae_m": 0.11487894505262375,
+        "edge_mae_m": 0.10029350221157074,
+        "forward_strip_mae_m": 0.06789179891347885,
+        "mean_sigma_m": 0.08885423839092255,
+        "steps": 1200
+      }
+    ],
+    "dense_oracle": [
+      {
+        "mae_m": 9.408146070200019e-06,
+        "observed_mae_m": 9.408146070200019e-06,
+        "unobserved_mae_m": null,
+        "edge_mae_m": 7.544762866018573e-06,
+        "forward_strip_mae_m": 1.922932824527379e-06,
+        "mean_sigma_m": 0.001009374507702887,
+        "steps": 300
+      },
+      {
+        "mae_m": 7.916712547739735e-07,
+        "observed_mae_m": 7.916712547739735e-07,
+        "unobserved_mae_m": null,
+        "edge_mae_m": 3.997339774741704e-07,
+        "forward_strip_mae_m": 3.9394944195692005e-08,
+        "mean_sigma_m": 0.0010004835203289986,
+        "steps": 1200
+      }
+    ]
+  },
+  "limits": [
+    "Diagnostic pitch change is not physical calibration",
+    "Stationary fixtures without robot self-occlusion",
+    "Validation windows share training terrains",
+    "Exact geometric returns without real sensor noise"
+  ]
+}

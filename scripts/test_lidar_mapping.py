@@ -251,3 +251,19 @@ def test_mapping_training_and_ame_student_accept_xyzu_without_ground_truth_input
     actions.square().mean().backward()
     assert student.map_encoder.local_cnn[0].weight.grad is not None
     assert all(torch.isfinite(p.grad).all() for p in student.parameters() if p.grad is not None)
+
+
+def test_mapping_zero_residual_cannot_collapse_variance_to_nonfinite_loss():
+    target = torch.zeros(1, 1, 2, 2)
+    predicted = target.clone().requires_grad_()
+    logvar = torch.tensor([[[[-1000., -50.], [-15., 0.]]]], requires_grad=True)
+    loss = MappingNet.beta_nll_loss(predicted, logvar, target)
+    loss.backward()
+    assert torch.isfinite(loss)
+    assert torch.isfinite(predicted.grad).all() and torch.isfinite(logvar.grad).all()
+    model = MappingNet()
+    with torch.no_grad():
+        model.head_unc.weight.zero_()
+        model.head_unc.bias.fill_(-1000.)
+        _, lv = model(torch.zeros(1, 1, 40, 48))
+    torch.testing.assert_close(lv.exp(), torch.full_like(lv, model.MIN_VARIANCE))

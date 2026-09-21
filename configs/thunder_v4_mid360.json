@@ -1,5 +1,6 @@
 {
   "robot": "thunder_v4",
+  "mount_link": "lidar1_link",
   "source": "LingTu config/robots/doso/thunder_v4/robot.yaml, snapshot 2026-09-22; not a new physical calibration",
   "sensor_translation_m": [0.402876074867229, 0.0, 0.0582019450665819],
   "sensor_rpy_rad": [-3.141592653589793, -0.7853981633974483, 0.0],
