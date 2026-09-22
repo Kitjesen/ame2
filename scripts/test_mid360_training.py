@@ -5,7 +5,8 @@ from ame2.lidar_mapping import GridSpec
 from ame2.networks.ame2_model import MappingNet
 from ame2.networks.ame2_model import MappingConfig
 from ame2.networks.lidar_mapping_model import LidarContextMappingNet
-from scripts.train_mid360_mapping import edges, metrics, nearest_fill, sample_weights
+from scripts.train_mid360_mapping import (edges, metrics, nearest_fill, sample_weights,
+                                         edge_gradient_loss, training_inputs, load_initial_weights)
 
 
 def test_flat_batch_and_flat_examples_keep_training_signal():
@@ -62,3 +63,43 @@ def test_context_model_connects_blind_cell_to_distant_observations():
     assert x.grad[0, 0, 20, 8].abs() > 0  # 1.2 m away at 5 cm resolution.
     explicit_mask = torch.ones_like(x, dtype=torch.bool)
     torch.testing.assert_close(model(x, explicit_mask)[0], mean)
+
+
+def test_gradient_loss_distinguishes_steps_from_smoothed_or_false_edges():
+    truth = torch.zeros(1, 1, 4, 6)
+    truth[..., 3:] = .2
+    assert edge_gradient_loss(truth, truth) == 0
+    smooth = torch.linspace(0, .2, 6).expand_as(truth).clone().requires_grad_()
+    loss = edge_gradient_loss(smooth, truth)
+    assert loss > 0
+    loss.backward()
+    assert smooth.grad[..., 2].mean() > 0
+    assert smooth.grad[..., 3].mean() < 0
+    assert edge_gradient_loss(truth, torch.zeros_like(truth)) > 0
+
+
+def test_clean_frame_mixture_keeps_each_mask_with_its_scan():
+    noisy = torch.full((8, 1, 3, 4), -2.)
+    clean = torch.ones_like(noisy)
+    batch = {"raw": noisy, "observed": noisy > 0, "clean_raw": clean,
+             "clean_observed": clean > 0, "truth": torch.full_like(clean, torch.nan)}
+    generator = torch.Generator().manual_seed(923)
+    raw, mask = training_inputs(batch, torch.arange(8), .5, generator)
+    assert mask.any() and (~mask).any()
+    assert torch.isfinite(raw).all()
+    torch.testing.assert_close(raw == 1, mask)
+    assert all(frame.all() or not frame.any() for frame in mask)
+
+
+def test_initial_weights_reject_a_different_physical_mount(tmp_path):
+    import json
+    from pathlib import Path
+    import pytest
+    config = json.loads((Path(__file__).parents[1] / "configs/thunder_v4_mid360_side_view.json").read_text())
+    model = LidarContextMappingNet(MappingConfig())
+    path = tmp_path / "init.pt"
+    torch.save({"model": model.state_dict(), "config": config, "model_kind": "lidar-context", "steps": 5500}, path)
+    assert load_initial_weights(model, path, config, "lidar-context", "cpu") == 5500
+    config["sensor_rpy_rad"] = [0., 0., 0.]
+    with pytest.raises(ValueError, match="sensor_rpy_rad"):
+        load_initial_weights(model, path, config, "lidar-context", "cpu")

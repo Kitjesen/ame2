@@ -38,6 +38,40 @@ def forward_map(model, inputs, observed):
     return model(inputs, observed) if isinstance(model, LidarContextMappingNet) else model(inputs)
 
 
+def training_inputs(batch, ids, clean_fraction, generator):
+    """Choose entire measured frames with their matching observation masks."""
+    raw, observed = batch["raw"][ids], batch["observed"][ids]
+    if clean_fraction == 0:
+        return raw, observed
+    clean = torch.rand((len(ids), 1, 1, 1), device=raw.device, generator=generator) < clean_fraction
+    return (torch.where(clean, batch["clean_raw"][ids], raw),
+            torch.where(clean, batch["clean_observed"][ids], observed))
+
+
+def edge_gradient_loss(prediction, truth):
+    """Preserve signed height jumps without encouraging edges on flat ground."""
+    losses = []
+    for dim in (-1, -2):
+        target = torch.diff(truth, dim=dim)
+        delta = torch.diff(prediction, dim=dim)
+        weights = 1. + 4. * (target.abs() > .05).to(target.dtype)
+        error = F.smooth_l1_loss(delta, target, beta=.02, reduction="none")
+        losses.append((error * weights).flatten(1).sum(-1) / weights.flatten(1).sum(-1))
+    return torch.stack(losses).mean()
+
+
+def load_initial_weights(model, path, config, kind, device):
+    """Warm-start weights only; the fine-tuning optimizer starts fresh."""
+    saved = torch.load(path, map_location=device, weights_only=True)
+    if saved.get("model_kind", "paper") != kind:
+        raise ValueError("Initial checkpoint model kind differs")
+    for key in ("grid", "sensor_translation_m", "sensor_rpy_rad", "max_distance_m", "samples_per_scan", "scan_hz"):
+        if saved["config"][key] != config[key]:
+            raise ValueError(f"Initial checkpoint sensor configuration differs: {key}")
+    model.load_state_dict(saved["model"])
+    return saved["steps"]
+
+
 @torch.no_grad()
 def predict(model, inputs, observed):
     outputs = [forward_map(model, x, mask) for x, mask in zip(inputs.split(64), observed.split(64))]
@@ -130,12 +164,21 @@ def main():
     parser.add_argument("--dataset", default="artifacts/mapping_training/dataset.pt")
     parser.add_argument("--output", default="artifacts/mapping_training/run")
     parser.add_argument("--baseline-checkpoint")
+    parser.add_argument("--init-checkpoint", help="Warm-start model weights; reset optimizer and schedule")
     parser.add_argument("--steps", type=int, default=6000)
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--seed", type=int, default=922)
     parser.add_argument("--model", choices=("paper", "lidar-context"), default="paper")
+    parser.add_argument("--lr", type=float, default=.001)
+    parser.add_argument("--min-lr", type=float, default=.0001)
+    parser.add_argument("--clean-fraction", type=float, default=0.)
+    parser.add_argument("--edge-loss-weight", type=float, default=0.)
+    parser.add_argument("--validation-objective", choices=("mae", "balanced"), default="mae",
+                        help="balanced averages noisy/clean whole-map and edge MAE")
     args = parser.parse_args()
+    if not 0 <= args.clean_fraction <= 1 or args.edge_loss_weight < 0:
+        parser.error("clean-fraction must be in [0,1] and edge-loss-weight nonnegative")
     torch.set_num_threads(4)
     torch.manual_seed(args.seed)
     output = Path(args.output)
@@ -153,6 +196,7 @@ def main():
     model_class = MappingNet if args.model == "paper" else LidarContextMappingNet
     model_kwargs = {"missing_height": grid.missing_height} if args.model == "lidar-context" else {}
     model = model_class(cfg, **model_kwargs).to(args.device)
+    initial_step = load_initial_weights(model, args.init_checkpoint, dataset["config"], args.model, args.device) if args.init_checkpoint else None
     baseline = None
     if args.baseline_checkpoint:
         old = MappingNet(cfg).to(args.device)
@@ -164,14 +208,19 @@ def main():
         mu, lv = predict(old, test["raw"], test["observed"])
         baseline = metrics(mu, test["truth"], test["observed"], grid, lv)
         del old
-    optimizer = torch.optim.Adam(model.parameters(), lr=.001)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.steps, eta_min=.0001)
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.steps, eta_min=args.min_lr)
+    augmentation_generator = torch.Generator(device=args.device).manual_seed(args.seed + 1)
     result = {"status": "training", "steps": args.steps, "seed": args.seed,
               "model": args.model,
               "parameter_count": sum(p.numel() for p in model.parameters()),
               "train_frames": len(train["raw"]), "validation_frames": len(val["raw"]), "test_frames": len(test["raw"]),
               "config": dataset["config"], "acquisition": dataset["acquisition"], "noise": dataset["noise"],
               "tile_splits": dataset["tile_splits"], "loss": "beta-NLL beta=.5; 90% TV + 10% uniform sample weights",
+              "initial_checkpoint": args.init_checkpoint, "initial_checkpoint_step": initial_step,
+              "learning_rate": args.lr, "minimum_learning_rate": args.min_lr,
+              "clean_frame_fraction": args.clean_fraction, "edge_loss_weight": args.edge_loss_weight,
+              "validation_objective": args.validation_objective,
               "old_300step_checkpoint_test": baseline, "curve": [],
               "limits": ["No real sensor recording or calibrated noise distribution",
                          "Saved angle sequence lacks timestamps; 20000 directions at nominal 10 Hz",
@@ -180,30 +229,51 @@ def main():
                          "Held-out terrain tiles, not an independent real-world test"]}
     best = float("inf")
     started = time.monotonic()
-    for step in range(1, args.steps + 1):
-        ids = torch.randint(len(train["raw"]), (args.batch_size,), device=args.device)
-        mean, lv = forward_map(model, train["raw"][ids], train["observed"][ids])
-        loss = model.beta_nll_loss(mean, lv, train["truth"][ids], tv_weights=sample_weights(train["truth"][ids]))
-        if not torch.isfinite(loss):
-            raise RuntimeError(f"Non-finite mapping loss at step {step}")
-        optimizer.zero_grad()
-        loss.backward()
-        grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), 10., error_if_nonfinite=True)
-        optimizer.step()
-        scheduler.step()
-        if step == 1 or step % 500 == 0 or step == args.steps:
+    for step in range(0 if args.init_checkpoint else 1, args.steps + 1):
+        loss = grad_norm = gradient_loss = None
+        if step:
+            ids = torch.randint(len(train["raw"]), (args.batch_size,), device=args.device)
+            inputs, observed = training_inputs(train, ids, args.clean_fraction, augmentation_generator)
+            mean, lv = forward_map(model, inputs, observed)
+            loss = model.beta_nll_loss(mean, lv, train["truth"][ids], tv_weights=sample_weights(train["truth"][ids]))
+            if args.edge_loss_weight:
+                gradient_loss = edge_gradient_loss(mean, train["truth"][ids])
+                loss = loss + args.edge_loss_weight * gradient_loss
+            if not torch.isfinite(loss):
+                raise RuntimeError(f"Non-finite mapping loss at step {step}")
+            optimizer.zero_grad()
+            loss.backward()
+            grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), 10., error_if_nonfinite=True)
+            optimizer.step()
+            scheduler.step()
+        if step <= 1 or step % 500 == 0 or step == args.steps:
             mu, log_var = predict(model, val["raw"], val["observed"])
             record = metrics(mu, val["truth"], val["observed"], grid, log_var)
-            record.update(step=step, training_loss=loss.item(), grad_norm=grad_norm.item())
+            score = record["mae_m"]
+            if args.validation_objective == "balanced":
+                clean_mu, clean_lv = predict(model, val["clean_raw"], val["clean_observed"])
+                clean_record = metrics(clean_mu, val["truth"], val["clean_observed"], grid, clean_lv)
+                score = .25 * (record["mae_m"] + clean_record["mae_m"]
+                               + (record["edge_mae_m"] or 0.) + (clean_record["edge_mae_m"] or 0.))
+                record["clean"] = clean_record
+            record.update(step=step, training_loss=loss.item() if loss is not None else None,
+                          grad_norm=grad_norm.item() if grad_norm is not None else None,
+                          gradient_loss=gradient_loss.item() if gradient_loss is not None else None,
+                          selection_score=score)
             result["curve"].append(record)
             print(json.dumps({"step": step, "validation_mae_m": record["mae_m"],
-                              "unknown_mae_m": record["unknown_mae_m"], "edge_mae_m": record["edge_mae_m"]}), flush=True)
-            if record["mae_m"] < best:
-                best = record["mae_m"]
+                              "unknown_mae_m": record["unknown_mae_m"], "edge_mae_m": record["edge_mae_m"],
+                              "selection_score": score}), flush=True)
+            if score < best:
+                best = score
                 result["best_step"] = step
                 torch.save({"model": model.state_dict(), "optimizer": optimizer.state_dict(),
                             "model_kind": args.model,
                             "config": dataset["config"], "steps": step,
+                            "initial_checkpoint_step": initial_step,
+                            "training_recipe": {"clean_fraction": args.clean_fraction, "edge_loss_weight": args.edge_loss_weight,
+                                                "validation_objective": args.validation_objective},
+                            "tile_splits": dataset["tile_splits"],
                             "status": "synthetic held-out terrain prototype; not deployment weights"}, output / "mapping_best.pt")
             (output / "result.json").write_text(json.dumps(result, indent=2))
     result["training_seconds"] = time.monotonic() - started
