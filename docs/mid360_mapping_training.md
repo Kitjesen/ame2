@@ -2,6 +2,8 @@
 
 2026-09-22。先训练建图网络，再判断地图能否成为策略的可靠输入。本实验不启动 PPO，不宣称已经得到可部署的雷达行走策略。
 
+后续结果：[测量原点修正与物理安装姿态对照](mid360_mount_comparison.md)。以下保留原安装姿态的历史实验；新对照重新采集了配对样本，不能把两轮独立数据的指标混为同一组。
+
 ## 点数与时序核对
 
 [Livox 官方规格](https://www.livoxtech.com/mid-360/specs)给出 **200,000 points/s，first return**，典型帧率 **10 Hz**。因此 100 ms 的名义点数是 20,000；50 ms 为 10,000，20 ms 为 4,000。这是组帧预算，不能等同于有效地面回波数。[官方驱动](https://github.com/Livox-SDK/livox_ros_driver2)允许配置发布频率，并明确说明每帧点数可能不同，逐点携带时间戳。实机必须从记录中的时间戳、point_num、无效点和过滤结果分别计数。
@@ -16,7 +18,7 @@ MID-360 的水平 360°、垂直 −7°～52° 是一个宽广的三维视场，
 
 当前配置 roll=−180°、pitch=−45° 把测量坐标的 +Z 变成机体中的 `[0.707, 0, −0.707]`。这根轴朝前下方，但轴本身位于顶部未扫描锥体中心；名义锥体半角为 90°−52°=38°。`scripts/audit_mid360_fov.py` 不使用网络、点云稀疏性或机身遮挡，直接计算平地到雷达的方向：基座高 0.5 m 时，前方 0.5/1/2 m 地面分别需要雷达坐标内 54.87°/88.07°/64.26° 仰角，均超过 52°。这解释了**当前仿真假设**中的前方中央空白。[计算结果](mid360_fov_audit_20260922.json)。
 
-代码检查未发现此路径把安装旋转施加两次：pattern 先转到连杆坐标，随后只应用机器人基座姿态。现有 CAD/MJCF 传感器连杆、机器人配置与训练配置使用同一外参；但从 CAD 连杆到 Livox 测量坐标的独立标定关系未得到验证。**不能凭仿真空白判定实机安装错误，也不能为了消掉空白擅改物理外参。** 先对齐厂家测量坐标、模型连杆和实际安装，再验证覆盖；本轮训练结果保持为该明确假设下的实验。
+代码检查未发现此路径把安装旋转施加两次：pattern 先转到连杆坐标，随后只应用机器人基座姿态。后续[厂家 CAD 对齐](mid360_mount_comparison.md)支持模型与测量坐标的 +Z 同向，并找到了约 +7.5 mm 的测量原点偏移；实机标定仍未完成。改变安装朝向必须同时改变物理安装和传感器变换，不能仅为消掉空白修改软件外参。本节训练保留原配置快照。
 
 ![当前坐标假设下的平地可观测性](assets/mid360_fov_audit.png)
 
@@ -89,16 +91,19 @@ cd /home/bsrl/ame2-mid360-codex
 export CUDA_VISIBLE_DEVICES=7
 export OMP_NUM_THREADS=4
 export PYTHONPATH="$PWD:/home/bsrl/omni-test-codex/LidarSensor"
-python scripts/collect_thunder_mapping.py --headless --device cuda:0 --num-envs 16
+python scripts/collect_thunder_mapping.py --headless --device cuda:0 --num-envs 16 \
+  --config configs/thunder_v4_mid360_legacy.json
 python scripts/train_mid360_mapping.py --device cuda:0 --steps 6000 \
   --baseline-checkpoint artifacts/mid360_validation/mapping_smoke.pt
 python scripts/train_mid360_mapping.py --device cuda:0 --steps 6000 \
   --model lidar-context --output artifacts/mapping_training/context
 python -m pytest scripts/test_mid360_training.py -q
-python scripts/audit_mid360_fov.py
+python scripts/audit_mid360_fov.py --config configs/thunder_v4_mid360_legacy.json
 ```
 
 数据位于 `artifacts/mapping_training/dataset.pt`，原架构权重位于 `artifacts/mapping_training/run/mapping_best.pt`；结构对照权重位于 `artifacts/mapping_training/context/mapping_best.pt`。产物目录不进入 Git；源代码、指标和预览图纳入仓库。
+
+这组历史数据和图在提交 `2a2e933` 上采集。后续采集器在环境重置后显式重设随机种子并保存位姿，因此精确复现实验须使用该提交及当时的默认配置（该版本尚无 `legacy` 文件）；当前代码使用相同旧外参也会得到另一组采样位姿。
 
 训练检查有限损失和梯度、验证集选权重、保存恢复一致性。四项针对性测试覆盖平地梯度、已观测/未知指标、无真值的最近邻基线、扩大后的感受野。采集检查地形块隔离、传感器位姿、两路 pattern 同步和有效地图回波。
 

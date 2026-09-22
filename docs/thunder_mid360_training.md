@@ -47,6 +47,7 @@ Critic 的接触维数来自实际加载的接触传感器；不套用 ANYmal �
 cd /home/bsrl/ame2-mid360-codex
 export PYTHONPATH="$PWD:/home/bsrl/omni-test-codex/LidarSensor"
 CUDA_VISIBLE_DEVICES=7 python -u scripts/train_thunder_mid360.py \
+  --config configs/thunder_v4_mid360_legacy.json \
   --headless --device cuda:0 --num-envs 4 --iterations 2 --terrain plane \
   --mapping-checkpoint artifacts/mid360_validation/mapping_smoke.pt \
   --output artifacts/thunder_mid360_plane

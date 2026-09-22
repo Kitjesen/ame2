@@ -20,7 +20,7 @@
 
 ## 2. 输入接口与坐标
 
-实现：[ame2/lidar_mapping.py](../ame2/lidar_mapping.py)。外参快照：[thunder_v4_mid360.json](../configs/thunder_v4_mid360.json)。
+实现：[ame2/lidar_mapping.py](../ame2/lidar_mapping.py)。本节历史外参快照：[thunder_v4_mid360_legacy.json](../configs/thunder_v4_mid360_legacy.json)。后续[CAD 原点修正与安装对照](mid360_mount_comparison.md)单独记录。
 
 | 张量 | 形状 | 语义 |
 | --- | --- | --- |
@@ -134,7 +134,7 @@ PYTHONPATH=. OMP_NUM_THREADS=2 python -m pytest scripts/test_lidar_mapping.py sc
 # Set OMNI_ROOT to the parent directory containing the fixed LidarSensor package.
 export OMNI_ROOT=/home/bsrl/omni-test-codex/LidarSensor
 export PYTHONPATH="$PWD:$OMNI_ROOT"
-CUDA_VISIBLE_DEVICES=7 timeout --kill-after=10s 180s python scripts/validate_mid360_isaaclab.py --headless --device cuda:0
+CUDA_VISIBLE_DEVICES=7 timeout --kill-after=10s 180s python scripts/validate_mid360_isaaclab.py --headless --device cuda:0 --config configs/thunder_v4_mid360_legacy.json
 python scripts/plot_mid360_validation.py
 ```
 

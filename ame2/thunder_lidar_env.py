@@ -14,6 +14,7 @@ from LidarSensor.example.isaaclab.isaaclab.sensors import LidarSensorCfg, LivoxP
 
 from .lidar_mapping import GridSpec, policy_map_from_height
 from .lidar_observation import LidarPolicyInput, ProprioceptiveHistory
+from .mid360_mount import prepare_mount_urdf
 
 
 def teacher_grid_pattern(cfg, device):
@@ -34,6 +35,10 @@ def configure_lidar_scene(env_cfg, sensor_cfg, usd_dir):
     env_cfg.scene.lazy_sensor_update = True
     # Keep task conversion artifacts separate from the shared training asset.
     env_cfg.scene.robot.spawn.usd_dir = str(usd_dir)
+    env_cfg.scene.robot.spawn.asset_path = prepare_mount_urdf(
+        env_cfg.scene.robot.spawn.asset_path, usd_dir, sensor_cfg)
+    if sensor_cfg.get("urdf_mount_override"):
+        env_cfg.scene.robot.spawn.force_usd_conversion = True
     common = dict(
         prim_path="{ENV_REGEX_NS}/Robot/base_link",
         offset=LidarSensorCfg.OffsetCfg(pos=tuple(sensor_cfg["sensor_translation_m"]), rot=rotation),
