@@ -1,0 +1,32 @@
+{
+  "robot": "thunder_v4",
+  "mount_link": "lidar1_link",
+  "source": "Thunder CAD mount plus +7.5 mm optical-origin offset from official CAD alignment; nominal CAD transform, not field calibration",
+  "sensor_translation_m": [
+    0.4081793757261281,
+    9.184850993605148e-19,
+    0.05289864420768279
+  ],
+  "sensor_rpy_rad": [
+    -3.141592653589793,
+    -0.7853981633974483,
+    0.0
+  ],
+  "fixture_base_height_m": 0.5,
+  "scan_hz": 10,
+  "samples_per_scan": 20000,
+  "max_distance_m": 10.0,
+  "grid": {
+    "x_min": -0.4,
+    "x_max": 2.0,
+    "y_min": -1.0,
+    "y_max": 1.0,
+    "resolution": 0.05,
+    "missing_height": -2.0
+  },
+  "measurement_origin_in_mount_m": [
+    0.0,
+    0.0,
+    0.0075
+  ]
+}

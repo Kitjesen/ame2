@@ -1,0 +1,643 @@
+{
+  "config": {
+    "robot": "thunder_v4",
+    "mount_link": "lidar1_link",
+    "source": "Experimental physical mount: roll -120 deg, pitch 0. Move the top blind cone sideways; housing and measurement transform change together. Not field calibration or a fitted bracket",
+    "sensor_translation_m": [
+      0.402876074867229,
+      0.00649519052838329,
+      0.0544519450665819
+    ],
+    "sensor_rpy_rad": [
+      -2.0943951023931953,
+      0.0,
+      0.0
+    ],
+    "measurement_origin_in_mount_m": [
+      0.0,
+      0.0,
+      0.0075
+    ],
+    "fixture_base_height_m": 0.5,
+    "scan_hz": 10,
+    "samples_per_scan": 20000,
+    "max_distance_m": 10.0,
+    "grid": {
+      "x_min": -0.4,
+      "x_max": 2.0,
+      "y_min": -1.0,
+      "y_max": 1.0,
+      "resolution": 0.05,
+      "missing_height": -2.0
+    },
+    "urdf_mount_override": {
+      "joint_name": "lidar1_joint",
+      "position_m": [
+        0.402876074867229,
+        0.0,
+        0.0582019450665819
+      ],
+      "rpy_rad": [
+        -2.0943951023931953,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "frames": {
+    "train": 8192,
+    "validation": 1024,
+    "test": 1024
+  },
+  "tile_splits": {
+    "train": [
+      [
+        3,
+        0
+      ],
+      [
+        6,
+        0
+      ],
+      [
+        2,
+        0
+      ],
+      [
+        0,
+        0
+      ],
+      [
+        5,
+        0
+      ],
+      [
+        4,
+        1
+      ],
+      [
+        5,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        6,
+        1
+      ],
+      [
+        3,
+        1
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        6,
+        2
+      ],
+      [
+        5,
+        2
+      ],
+      [
+        7,
+        2
+      ],
+      [
+        3,
+        2
+      ],
+      [
+        5,
+        3
+      ],
+      [
+        0,
+        3
+      ],
+      [
+        4,
+        3
+      ],
+      [
+        1,
+        3
+      ],
+      [
+        2,
+        3
+      ],
+      [
+        7,
+        4
+      ],
+      [
+        2,
+        4
+      ],
+      [
+        3,
+        4
+      ],
+      [
+        0,
+        4
+      ],
+      [
+        5,
+        4
+      ],
+      [
+        1,
+        5
+      ],
+      [
+        6,
+        5
+      ],
+      [
+        4,
+        5
+      ],
+      [
+        5,
+        5
+      ],
+      [
+        0,
+        5
+      ],
+      [
+        2,
+        6
+      ],
+      [
+        6,
+        6
+      ],
+      [
+        0,
+        6
+      ],
+      [
+        5,
+        6
+      ],
+      [
+        3,
+        6
+      ],
+      [
+        1,
+        7
+      ],
+      [
+        6,
+        7
+      ],
+      [
+        5,
+        7
+      ],
+      [
+        7,
+        7
+      ],
+      [
+        0,
+        7
+      ],
+      [
+        0,
+        8
+      ],
+      [
+        7,
+        8
+      ],
+      [
+        3,
+        8
+      ],
+      [
+        6,
+        8
+      ],
+      [
+        1,
+        8
+      ],
+      [
+        3,
+        9
+      ],
+      [
+        7,
+        9
+      ],
+      [
+        4,
+        9
+      ],
+      [
+        1,
+        9
+      ],
+      [
+        2,
+        9
+      ]
+    ],
+    "validation": [
+      [
+        1,
+        0
+      ],
+      [
+        2,
+        1
+      ],
+      [
+        2,
+        2
+      ],
+      [
+        3,
+        3
+      ],
+      [
+        1,
+        4
+      ],
+      [
+        2,
+        5
+      ],
+      [
+        1,
+        6
+      ],
+      [
+        2,
+        7
+      ],
+      [
+        2,
+        8
+      ],
+      [
+        0,
+        9
+      ]
+    ],
+    "test": [
+      [
+        4,
+        0
+      ],
+      [
+        7,
+        0
+      ],
+      [
+        0,
+        1
+      ],
+      [
+        7,
+        1
+      ],
+      [
+        4,
+        2
+      ],
+      [
+        0,
+        2
+      ],
+      [
+        6,
+        3
+      ],
+      [
+        7,
+        3
+      ],
+      [
+        6,
+        4
+      ],
+      [
+        4,
+        4
+      ],
+      [
+        7,
+        5
+      ],
+      [
+        3,
+        5
+      ],
+      [
+        7,
+        6
+      ],
+      [
+        4,
+        6
+      ],
+      [
+        3,
+        7
+      ],
+      [
+        4,
+        7
+      ],
+      [
+        4,
+        8
+      ],
+      [
+        5,
+        8
+      ],
+      [
+        5,
+        9
+      ],
+      [
+        6,
+        9
+      ]
+    ]
+  },
+  "models": {
+    "initial": {
+      "checkpoint": "artifacts/mount_comparison/side/run/mapping_best.pt",
+      "selected_step": 5500,
+      "noisy": {
+        "mae_m": 0.03467504307627678,
+        "rmse_m": 0.0606556311249733,
+        "observed_mae_m": 0.018805235624313354,
+        "unknown_mae_m": 0.04643673077225685,
+        "edge_mae_m": 0.0766143947839737,
+        "forward_strip_mae_m": 0.021824514493346214,
+        "forward_strip_observed_fraction": 0.8060058355331421,
+        "observed_fraction": 0.42566221952438354,
+        "edge_precision_within_one_cell": 0.8614046573638916,
+        "edge_recall_within_one_cell": 0.4511597752571106,
+        "mean_sigma_m": 0.044144321233034134,
+        "observed_mean_sigma_m": 0.02682805433869362,
+        "unknown_mean_sigma_m": 0.056978024542331696,
+        "coverage_1sigma": 0.764569103717804,
+        "coverage_2sigma": 0.9362828731536865,
+        "low_sigma_fraction": 0.6510350704193115,
+        "low_sigma_mae_m": 0.018702659755945206,
+        "uncertainty_quartiles": [
+          {
+            "mean_sigma_m": 0.014242627657949924,
+            "rmse_m": 0.014177612029016018
+          },
+          {
+            "mean_sigma_m": 0.029009493067860603,
+            "rmse_m": 0.03182023763656616
+          },
+          {
+            "mean_sigma_m": 0.04808449000120163,
+            "rmse_m": 0.05571892112493515
+          },
+          {
+            "mean_sigma_m": 0.0852406695485115,
+            "rmse_m": 0.10197201371192932
+          }
+        ]
+      },
+      "clean": {
+        "mae_m": 0.04045999422669411,
+        "rmse_m": 0.06603048741817474,
+        "observed_mae_m": 0.02636612020432949,
+        "unknown_mae_m": 0.05090127885341644,
+        "edge_mae_m": 0.07909773290157318,
+        "forward_strip_mae_m": 0.03118395246565342,
+        "forward_strip_observed_fraction": 0.8153076171875,
+        "observed_fraction": 0.42556408047676086,
+        "edge_precision_within_one_cell": 0.8548792600631714,
+        "edge_recall_within_one_cell": 0.464778333902359,
+        "mean_sigma_m": 0.04727647453546524,
+        "observed_mean_sigma_m": 0.028084883466362953,
+        "unknown_mean_sigma_m": 0.061494339257478714,
+        "coverage_1sigma": 0.6455205082893372,
+        "coverage_2sigma": 0.8913716673851013,
+        "low_sigma_fraction": 0.6106888055801392,
+        "low_sigma_mae_m": 0.02333083562552929,
+        "uncertainty_quartiles": [
+          {
+            "mean_sigma_m": 0.01492700818926096,
+            "rmse_m": 0.02222113497555256
+          },
+          {
+            "mean_sigma_m": 0.03097757138311863,
+            "rmse_m": 0.03308597952127457
+          },
+          {
+            "mean_sigma_m": 0.051950205117464066,
+            "rmse_m": 0.05986858159303665
+          },
+          {
+            "mean_sigma_m": 0.09125112742185593,
+            "rmse_m": 0.11075826734304428
+          }
+        ]
+      }
+    },
+    "control": {
+      "checkpoint": "artifacts/mapping_round2/control/mapping_best.pt",
+      "selected_step": 10000,
+      "noisy": {
+        "mae_m": 0.0312894731760025,
+        "rmse_m": 0.05630243569612503,
+        "observed_mae_m": 0.016525469720363617,
+        "unknown_mae_m": 0.04223159700632095,
+        "edge_mae_m": 0.07310350239276886,
+        "forward_strip_mae_m": 0.01926964893937111,
+        "forward_strip_observed_fraction": 0.8060058355331421,
+        "observed_fraction": 0.42566221952438354,
+        "edge_precision_within_one_cell": 0.9047670364379883,
+        "edge_recall_within_one_cell": 0.4628750681877136,
+        "mean_sigma_m": 0.042402759194374084,
+        "observed_mean_sigma_m": 0.02365003153681755,
+        "unknown_mean_sigma_m": 0.05630107969045639,
+        "coverage_1sigma": 0.7808914184570312,
+        "coverage_2sigma": 0.9458140134811401,
+        "low_sigma_fraction": 0.6695826053619385,
+        "low_sigma_mae_m": 0.01574997417628765,
+        "uncertainty_quartiles": [
+          {
+            "mean_sigma_m": 0.010556225664913654,
+            "rmse_m": 0.010169492103159428
+          },
+          {
+            "mean_sigma_m": 0.024899741634726524,
+            "rmse_m": 0.026046985760331154
+          },
+          {
+            "mean_sigma_m": 0.04590653255581856,
+            "rmse_m": 0.05050637573003769
+          },
+          {
+            "mean_sigma_m": 0.08824855834245682,
+            "rmse_m": 0.09668039530515671
+          }
+        ]
+      },
+      "clean": {
+        "mae_m": 0.037595782428979874,
+        "rmse_m": 0.061245255172252655,
+        "observed_mae_m": 0.02544843778014183,
+        "unknown_mae_m": 0.04659499228000641,
+        "edge_mae_m": 0.07517571747303009,
+        "forward_strip_mae_m": 0.029034635052084923,
+        "forward_strip_observed_fraction": 0.8153076171875,
+        "observed_fraction": 0.42556408047676086,
+        "edge_precision_within_one_cell": 0.9005020260810852,
+        "edge_recall_within_one_cell": 0.4794774055480957,
+        "mean_sigma_m": 0.045992832630872726,
+        "observed_mean_sigma_m": 0.024623988196253777,
+        "unknown_mean_sigma_m": 0.061823684722185135,
+        "coverage_1sigma": 0.6285603642463684,
+        "coverage_2sigma": 0.8545201420783997,
+        "low_sigma_fraction": 0.6279459595680237,
+        "low_sigma_mae_m": 0.021763717755675316,
+        "uncertainty_quartiles": [
+          {
+            "mean_sigma_m": 0.01090239267796278,
+            "rmse_m": 0.021113840863108635
+          },
+          {
+            "mean_sigma_m": 0.027053900063037872,
+            "rmse_m": 0.028729695826768875
+          },
+          {
+            "mean_sigma_m": 0.05030208081007004,
+            "rmse_m": 0.05432824045419693
+          },
+          {
+            "mean_sigma_m": 0.09571295231580734,
+            "rmse_m": 0.10383245348930359
+          }
+        ]
+      },
+      "training": {
+        "status": "completed",
+        "steps": 12000,
+        "best_step": 10000,
+        "initial_checkpoint_step": 5500,
+        "clean_frame_fraction": 0.0,
+        "edge_loss_weight": 0.0,
+        "validation_objective": "balanced",
+        "checkpoint_reload_verified": true,
+        "training_seconds": 83.8438773448579
+      }
+    },
+    "edge_mix": {
+      "checkpoint": "artifacts/mapping_round2/edge_mix/mapping_best.pt",
+      "selected_step": 10000,
+      "noisy": {
+        "mae_m": 0.03232048824429512,
+        "rmse_m": 0.05664604529738426,
+        "observed_mae_m": 0.018743330612778664,
+        "unknown_mae_m": 0.04238301143050194,
+        "edge_mae_m": 0.07246051728725433,
+        "forward_strip_mae_m": 0.021308191120624542,
+        "forward_strip_observed_fraction": 0.8060058355331421,
+        "observed_fraction": 0.42566221952438354,
+        "edge_precision_within_one_cell": 0.9157013893127441,
+        "edge_recall_within_one_cell": 0.46515366435050964,
+        "mean_sigma_m": 0.04221895709633827,
+        "observed_mean_sigma_m": 0.025333216413855553,
+        "unknown_mean_sigma_m": 0.054733578115701675,
+        "coverage_1sigma": 0.7521260380744934,
+        "coverage_2sigma": 0.9409688115119934,
+        "low_sigma_fraction": 0.6841481328010559,
+        "low_sigma_mae_m": 0.017952894791960716,
+        "uncertainty_quartiles": [
+          {
+            "mean_sigma_m": 0.013472970575094223,
+            "rmse_m": 0.013626044616103172
+          },
+          {
+            "mean_sigma_m": 0.025406770408153534,
+            "rmse_m": 0.02707817777991295
+          },
+          {
+            "mean_sigma_m": 0.04468948766589165,
+            "rmse_m": 0.050748422741889954
+          },
+          {
+            "mean_sigma_m": 0.08530659228563309,
+            "rmse_m": 0.09664779901504517
+          }
+        ]
+      },
+      "clean": {
+        "mae_m": 0.032436978071928024,
+        "rmse_m": 0.05613313987851143,
+        "observed_mae_m": 0.018827315419912338,
+        "unknown_mae_m": 0.04251953586935997,
+        "edge_mae_m": 0.07141930609941483,
+        "forward_strip_mae_m": 0.02112836018204689,
+        "forward_strip_observed_fraction": 0.8153076171875,
+        "observed_fraction": 0.42556408047676086,
+        "edge_precision_within_one_cell": 0.9159911870956421,
+        "edge_recall_within_one_cell": 0.47956839203834534,
+        "mean_sigma_m": 0.04428780823945999,
+        "observed_mean_sigma_m": 0.025276580825448036,
+        "unknown_mean_sigma_m": 0.05837205424904823,
+        "coverage_1sigma": 0.7619618773460388,
+        "coverage_2sigma": 0.9553848505020142,
+        "low_sigma_fraction": 0.6564086675643921,
+        "low_sigma_mae_m": 0.01721935346722603,
+        "uncertainty_quartiles": [
+          {
+            "mean_sigma_m": 0.01309023704379797,
+            "rmse_m": 0.012854031287133694
+          },
+          {
+            "mean_sigma_m": 0.026375720277428627,
+            "rmse_m": 0.025300942361354828
+          },
+          {
+            "mean_sigma_m": 0.0473359189927578,
+            "rmse_m": 0.049915116280317307
+          },
+          {
+            "mean_sigma_m": 0.09034935384988785,
+            "rmse_m": 0.09647193551063538
+          }
+        ]
+      },
+      "training": {
+        "status": "completed",
+        "steps": 12000,
+        "best_step": 10000,
+        "initial_checkpoint_step": 5500,
+        "clean_frame_fraction": 0.5,
+        "edge_loss_weight": 1.0,
+        "validation_objective": "balanced",
+        "checkpoint_reload_verified": true,
+        "training_seconds": 99.63893263274804
+      }
+    }
+  },
+  "limits": [
+    "Static synthetic scans, no real sensor calibration or locomotion evaluation",
+    "Original held-out tile boundary preserved; these tiles were used in the prior mount study",
+    "Each model evaluated on the same noisy and clean scans"
+  ]
+}

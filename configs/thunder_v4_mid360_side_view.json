@@ -1,0 +1,21 @@
+{
+  "robot": "thunder_v4",
+  "mount_link": "lidar1_link",
+  "source": "Experimental physical mount: roll -120 deg, pitch 0. Move the top blind cone sideways; housing and measurement transform change together. Not field calibration or a fitted bracket",
+  "sensor_translation_m": [0.402876074867229, 0.00649519052838329, 0.0544519450665819],
+  "sensor_rpy_rad": [-2.0943951023931953, 0.0, 0.0],
+  "measurement_origin_in_mount_m": [0.0, 0.0, 0.0075],
+  "fixture_base_height_m": 0.5,
+  "scan_hz": 10,
+  "samples_per_scan": 20000,
+  "max_distance_m": 10.0,
+  "grid": {
+    "x_min": -0.4, "x_max": 2.0, "y_min": -1.0, "y_max": 1.0,
+    "resolution": 0.05, "missing_height": -2.0
+  },
+  "urdf_mount_override": {
+    "joint_name": "lidar1_joint",
+    "position_m": [0.402876074867229, 0.0, 0.0582019450665819],
+    "rpy_rad": [-2.0943951023931953, 0.0, 0.0]
+  }
+}

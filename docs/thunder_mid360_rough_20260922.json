@@ -1,0 +1,114 @@
+{
+  "status": "integration_passed_not_locomotion_validated",
+  "process_exit_code": 0,
+  "task": "PoseRoughV4",
+  "terrain": "rough",
+  "num_envs": 4,
+  "control_dt_s": 0.02,
+  "scan_hz": 10,
+  "samples_per_scan": 20000,
+  "joint_order": [
+    "fr_hip_joint",
+    "fr_thigh_joint",
+    "fr_calf_joint",
+    "fl_hip_joint",
+    "fl_thigh_joint",
+    "fl_calf_joint",
+    "rr_hip_joint",
+    "rr_thigh_joint",
+    "rr_calf_joint",
+    "rl_hip_joint",
+    "rl_thigh_joint",
+    "rl_calf_joint",
+    "fr_foot_joint",
+    "fl_foot_joint",
+    "rr_foot_joint",
+    "rl_foot_joint"
+  ],
+  "action_dim": 16,
+  "observation_shapes": {
+    "map": [
+      4,
+      4,
+      40,
+      48
+    ],
+    "history": [
+      4,
+      20,
+      54
+    ],
+    "commands": [
+      4,
+      3
+    ],
+    "map_teacher": [
+      4,
+      3,
+      40,
+      48
+    ],
+    "critic_prop": [
+      4,
+      60
+    ],
+    "contact": [
+      4,
+      17
+    ]
+  },
+  "scan_updates": 10,
+  "environment_resets": 1,
+  "point_count_columns": [
+    "rays",
+    "nonself_returns",
+    "self_occluded_rays",
+    "map_returns",
+    "observed_cells"
+  ],
+  "mean_counts": [
+    20000.0,
+    9241.725,
+    3608.7000000000003,
+    6514.275000000001,
+    716.225
+  ],
+  "min_counts": [
+    20000.0,
+    7005.0,
+    3128.0,
+    4572.0,
+    591.0
+  ],
+  "max_counts": [
+    20000.0,
+    10772.0,
+    4344.0,
+    8668.0,
+    907.0
+  ],
+  "ppo_losses": [
+    {
+      "value": 0.7959731817245483,
+      "surrogate": 0.05196030531078577,
+      "entropy": -3.0460557341575623
+    },
+    {
+      "value": 0.685159221291542,
+      "surrogate": -0.021376393735408783,
+      "entropy": -3.0441418886184692
+    }
+  ],
+  "map_encoder_updated": true,
+  "mapper_frozen": true,
+  "actor_privileged_independence": true,
+  "checkpoint_reload_equal": true,
+  "partial_reset_verified": true,
+  "mapping_checkpoint_status": "fixture smoke only, not deployment weights",
+  "limitations": [
+    "Bounded PPO integration, no trained walking skill or teacher distillation",
+    "Uses simulation poses; no within-scan motion distortion or real odometry errors",
+    "Front LiDAR optical axes are not independently calibrated on hardware",
+    "Mapper remains fixture-trained; map generalization/uncertainty not validated"
+  ]
+}

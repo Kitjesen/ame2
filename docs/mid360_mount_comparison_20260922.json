@@ -1,0 +1,516 @@
+{
+  "paired_poses_pattern_and_truth_verified": true,
+  "scan_directions": 20000,
+  "test_frames": 512,
+  "mounts": {
+    "legacy": {
+      "observed_fraction": 0.39447733759880066,
+      "forward_observed_fraction": 0.03212890774011612,
+      "raw_observed_mae_m": 0.024831492453813553,
+      "counts_mean": [
+        12583.431640625,
+        3118.525390625,
+        10139.55078125,
+        5852.71875,
+        757.396484375
+      ],
+      "config": {
+        "robot": "thunder_v4",
+        "mount_link": "lidar1_link",
+        "source": "LingTu config/robots/doso/thunder_v4/robot.yaml, snapshot 2026-09-22; not a new physical calibration",
+        "sensor_translation_m": [
+          0.402876074867229,
+          0.0,
+          0.0582019450665819
+        ],
+        "sensor_rpy_rad": [
+          -3.141592653589793,
+          -0.7853981633974483,
+          0.0
+        ],
+        "fixture_base_height_m": 0.5,
+        "scan_hz": 10,
+        "samples_per_scan": 20000,
+        "max_distance_m": 10.0,
+        "grid": {
+          "x_min": -0.4,
+          "x_max": 2.0,
+          "y_min": -1.0,
+          "y_max": 1.0,
+          "resolution": 0.05,
+          "missing_height": -2.0
+        }
+      },
+      "paired_native_label_boundary_cells": null,
+      "paired_native_label_max_difference_m": null,
+      "near_observed_fraction": 0.6137396693229675,
+      "reconstruction": {
+        "mae_m": 0.04212923347949982,
+        "rmse_m": 0.07197688519954681,
+        "observed_mae_m": 0.019039645791053772,
+        "unknown_mae_m": 0.05717131868004799,
+        "edge_mae_m": 0.08605560660362244,
+        "forward_strip_mae_m": 0.05969851836562157,
+        "forward_strip_observed_fraction": 0.03212890774011612,
+        "observed_fraction": 0.39447733759880066,
+        "edge_precision_within_one_cell": 0.7641255855560303,
+        "edge_recall_within_one_cell": 0.3992712199687958,
+        "mean_sigma_m": 0.05194282531738281,
+        "observed_mean_sigma_m": 0.028651949018239975,
+        "unknown_mean_sigma_m": 0.06711603701114655,
+        "coverage_1sigma": 0.7678110599517822,
+        "coverage_2sigma": 0.9401611089706421,
+        "low_sigma_fraction": 0.5517649054527283,
+        "low_sigma_mae_m": 0.016912421211600304,
+        "uncertainty_quartiles": [
+          {
+            "mean_sigma_m": 0.015594137832522392,
+            "rmse_m": 0.01316034235060215
+          },
+          {
+            "mean_sigma_m": 0.03487199917435646,
+            "rmse_m": 0.03603014349937439
+          },
+          {
+            "mean_sigma_m": 0.05775417387485504,
+            "rmse_m": 0.06497495621442795
+          },
+          {
+            "mean_sigma_m": 0.0995510071516037,
+            "rmse_m": 0.1225951686501503
+          }
+        ]
+      },
+      "training": {
+        "status": "completed",
+        "steps": 6000,
+        "best_step": 6000,
+        "train_frames": 2048,
+        "validation_frames": 512,
+        "test_frames": 512,
+        "checkpoint_reload_verified": true,
+        "test_clean_returns": {
+          "mae_m": 0.049093592911958694,
+          "rmse_m": 0.07744721323251724,
+          "observed_mae_m": 0.026893535628914833,
+          "unknown_mae_m": 0.06315996497869492,
+          "edge_mae_m": 0.09093804657459259,
+          "forward_strip_mae_m": 0.06762117892503738,
+          "forward_strip_observed_fraction": 0.02325032651424408,
+          "observed_fraction": 0.3878621757030487,
+          "edge_precision_within_one_cell": 0.7586814165115356,
+          "edge_recall_within_one_cell": 0.40358561277389526,
+          "mean_sigma_m": 0.052801795303821564,
+          "observed_mean_sigma_m": 0.02909758873283863,
+          "unknown_mean_sigma_m": 0.06782122701406479,
+          "coverage_1sigma": 0.6224579215049744,
+          "coverage_2sigma": 0.9032491445541382,
+          "low_sigma_fraction": 0.5320638418197632,
+          "low_sigma_mae_m": 0.024399112910032272,
+          "uncertainty_quartiles": [
+            {
+              "mean_sigma_m": 0.015995750203728676,
+              "rmse_m": 0.020903395488858223
+            },
+            {
+              "mean_sigma_m": 0.03601761907339096,
+              "rmse_m": 0.042304955422878265
+            },
+            {
+              "mean_sigma_m": 0.05917227640748024,
+              "rmse_m": 0.07537248730659485
+            },
+            {
+              "mean_sigma_m": 0.10002154111862183,
+              "rmse_m": 0.12682510912418365
+            }
+          ]
+        },
+        "test_clean_observed_mae_m": 0.007308892905712128,
+        "nearest_observed_baseline_test": {
+          "mae_m": 0.061199311167001724,
+          "rmse_m": 0.12259139120578766,
+          "observed_mae_m": 0.024831492453813553,
+          "unknown_mae_m": 0.08489168435335159,
+          "edge_mae_m": 0.12826354801654816,
+          "forward_strip_mae_m": 0.10356216877698898,
+          "forward_strip_observed_fraction": 0.03212890774011612,
+          "observed_fraction": 0.39447736740112305,
+          "edge_precision_within_one_cell": 0.6920655965805054,
+          "edge_recall_within_one_cell": 0.5749808549880981
+        }
+      }
+    },
+    "origin": {
+      "observed_fraction": 0.4177347719669342,
+      "forward_observed_fraction": 0.03395182266831398,
+      "raw_observed_mae_m": 0.02464263327419758,
+      "counts_mean": [
+        12591.765625,
+        1635.001953125,
+        11044.095703125,
+        6252.099609375,
+        802.05078125
+      ],
+      "config": {
+        "robot": "thunder_v4",
+        "mount_link": "lidar1_link",
+        "source": "Thunder CAD mount plus +7.5 mm optical-origin offset from official CAD alignment; nominal CAD transform, not field calibration",
+        "sensor_translation_m": [
+          0.4081793757261281,
+          9.184850993605148e-19,
+          0.05289864420768279
+        ],
+        "sensor_rpy_rad": [
+          -3.141592653589793,
+          -0.7853981633974483,
+          0.0
+        ],
+        "fixture_base_height_m": 0.5,
+        "scan_hz": 10,
+        "samples_per_scan": 20000,
+        "max_distance_m": 10.0,
+        "grid": {
+          "x_min": -0.4,
+          "x_max": 2.0,
+          "y_min": -1.0,
+          "y_max": 1.0,
+          "resolution": 0.05,
+          "missing_height": -2.0
+        },
+        "measurement_origin_in_mount_m": [
+          0.0,
+          0.0,
+          0.0075
+        ]
+      },
+      "paired_native_label_boundary_cells": null,
+      "paired_native_label_max_difference_m": null,
+      "near_observed_fraction": 0.6684760451316833
+    },
+    "ground": {
+      "observed_fraction": 0.4132832884788513,
+      "forward_observed_fraction": 0.635546863079071,
+      "raw_observed_mae_m": 0.02125789038836956,
+      "counts_mean": [
+        8447.455078125,
+        5824.595703125,
+        8392.05859375,
+        4565.533203125,
+        793.50390625
+      ],
+      "config": {
+        "robot": "thunder_v4",
+        "mount_link": "lidar1_link",
+        "source": "Proposed physical mount: roll 0, pitch +67.5 deg. URDF housing and scan transform change together; not the existing hardware calibration",
+        "sensor_translation_m": [
+          0.40980517136106365,
+          0.0,
+          0.06107207080932007
+        ],
+        "sensor_rpy_rad": [
+          0.0,
+          1.1780972450961724,
+          0.0
+        ],
+        "fixture_base_height_m": 0.5,
+        "scan_hz": 10,
+        "samples_per_scan": 20000,
+        "max_distance_m": 10.0,
+        "grid": {
+          "x_min": -0.4,
+          "x_max": 2.0,
+          "y_min": -1.0,
+          "y_max": 1.0,
+          "resolution": 0.05,
+          "missing_height": -2.0
+        },
+        "measurement_origin_in_mount_m": [
+          0.0,
+          0.0,
+          0.0075
+        ],
+        "urdf_mount_override": {
+          "joint_name": "lidar1_joint",
+          "position_m": [
+            0.402876074867229,
+            0.0,
+            0.0582019450665819
+          ],
+          "rpy_rad": [
+            0.0,
+            1.1780972450961724,
+            0.0
+          ]
+        }
+      },
+      "paired_native_label_boundary_cells": 1,
+      "paired_native_label_max_difference_m": 0.04950428009033203,
+      "near_observed_fraction": 0.01699761301279068,
+      "reconstruction": {
+        "mae_m": 0.03729650750756264,
+        "rmse_m": 0.06491293013095856,
+        "observed_mae_m": 0.019251447170972824,
+        "unknown_mae_m": 0.05000743642449379,
+        "edge_mae_m": 0.07785648852586746,
+        "forward_strip_mae_m": 0.028147568926215172,
+        "forward_strip_observed_fraction": 0.635546863079071,
+        "observed_fraction": 0.4132832884788513,
+        "edge_precision_within_one_cell": 0.8495743870735168,
+        "edge_recall_within_one_cell": 0.4933425784111023,
+        "mean_sigma_m": 0.04588242247700691,
+        "observed_mean_sigma_m": 0.027668653056025505,
+        "unknown_mean_sigma_m": 0.0587121956050396,
+        "coverage_1sigma": 0.7511911988258362,
+        "coverage_2sigma": 0.9347564578056335,
+        "low_sigma_fraction": 0.625323474407196,
+        "low_sigma_mae_m": 0.01901933178305626,
+        "uncertainty_quartiles": [
+          {
+            "mean_sigma_m": 0.015090063214302063,
+            "rmse_m": 0.014055349864065647
+          },
+          {
+            "mean_sigma_m": 0.03118840791285038,
+            "rmse_m": 0.03281969577074051
+          },
+          {
+            "mean_sigma_m": 0.050367917865514755,
+            "rmse_m": 0.059818655252456665
+          },
+          {
+            "mean_sigma_m": 0.0868832916021347,
+            "rmse_m": 0.10955271124839783
+          }
+        ]
+      },
+      "training": {
+        "status": "completed",
+        "steps": 6000,
+        "best_step": 6000,
+        "train_frames": 2048,
+        "validation_frames": 512,
+        "test_frames": 512,
+        "checkpoint_reload_verified": true,
+        "test_clean_returns": {
+          "mae_m": 0.043307434767484665,
+          "rmse_m": 0.0710938423871994,
+          "observed_mae_m": 0.023389670997858047,
+          "unknown_mae_m": 0.057176992297172546,
+          "edge_mae_m": 0.08080685883760452,
+          "forward_strip_mae_m": 0.0381440743803978,
+          "forward_strip_observed_fraction": 0.5997070670127869,
+          "observed_fraction": 0.4104960262775421,
+          "edge_precision_within_one_cell": 0.8410018682479858,
+          "edge_recall_within_one_cell": 0.5034143328666687,
+          "mean_sigma_m": 0.047949373722076416,
+          "observed_mean_sigma_m": 0.028779657557606697,
+          "unknown_mean_sigma_m": 0.06129803508520126,
+          "coverage_1sigma": 0.6540191769599915,
+          "coverage_2sigma": 0.9091909527778625,
+          "low_sigma_fraction": 0.595313549041748,
+          "low_sigma_mae_m": 0.023531898856163025,
+          "uncertainty_quartiles": [
+            {
+              "mean_sigma_m": 0.015956144779920578,
+              "rmse_m": 0.0202290341258049
+            },
+            {
+              "mean_sigma_m": 0.032933566719293594,
+              "rmse_m": 0.035389676690101624
+            },
+            {
+              "mean_sigma_m": 0.05315391346812248,
+              "rmse_m": 0.0633353590965271
+            },
+            {
+              "mean_sigma_m": 0.08975387364625931,
+              "rmse_m": 0.12059986591339111
+            }
+          ]
+        },
+        "test_clean_observed_mae_m": 0.007001866586506367,
+        "nearest_observed_baseline_test": {
+          "mae_m": 0.0542624332010746,
+          "rmse_m": 0.10466180741786957,
+          "observed_mae_m": 0.02125789038836956,
+          "unknown_mae_m": 0.07751083374023438,
+          "edge_mae_m": 0.11126665771007538,
+          "forward_strip_mae_m": 0.051197972148656845,
+          "forward_strip_observed_fraction": 0.6355469226837158,
+          "observed_fraction": 0.4132833182811737,
+          "edge_precision_within_one_cell": 0.7284677028656006,
+          "edge_recall_within_one_cell": 0.6088401079177856
+        }
+      }
+    },
+    "side": {
+      "observed_fraction": 0.4169677793979645,
+      "forward_observed_fraction": 0.793749988079071,
+      "raw_observed_mae_m": 0.02521015889942646,
+      "counts_mean": [
+        11173.521484375,
+        8388.109375,
+        8300.525390625,
+        6523.525390625,
+        800.578125
+      ],
+      "config": {
+        "robot": "thunder_v4",
+        "mount_link": "lidar1_link",
+        "source": "Experimental physical mount: roll -120 deg, pitch 0. Move the top blind cone sideways; housing and measurement transform change together. Not field calibration or a fitted bracket",
+        "sensor_translation_m": [
+          0.402876074867229,
+          0.00649519052838329,
+          0.0544519450665819
+        ],
+        "sensor_rpy_rad": [
+          -2.0943951023931953,
+          0.0,
+          0.0
+        ],
+        "measurement_origin_in_mount_m": [
+          0.0,
+          0.0,
+          0.0075
+        ],
+        "fixture_base_height_m": 0.5,
+        "scan_hz": 10,
+        "samples_per_scan": 20000,
+        "max_distance_m": 10.0,
+        "grid": {
+          "x_min": -0.4,
+          "x_max": 2.0,
+          "y_min": -1.0,
+          "y_max": 1.0,
+          "resolution": 0.05,
+          "missing_height": -2.0
+        },
+        "urdf_mount_override": {
+          "joint_name": "lidar1_joint",
+          "position_m": [
+            0.402876074867229,
+            0.0,
+            0.0582019450665819
+          ],
+          "rpy_rad": [
+            -2.0943951023931953,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "paired_native_label_boundary_cells": 0,
+      "paired_native_label_max_difference_m": 0.0,
+      "near_observed_fraction": 0.3455783426761627,
+      "reconstruction": {
+        "mae_m": 0.03585006296634674,
+        "rmse_m": 0.06204140931367874,
+        "observed_mae_m": 0.019242122769355774,
+        "unknown_mae_m": 0.04772758483886719,
+        "edge_mae_m": 0.0778433084487915,
+        "forward_strip_mae_m": 0.023236781358718872,
+        "forward_strip_observed_fraction": 0.793749988079071,
+        "observed_fraction": 0.4169677793979645,
+        "edge_precision_within_one_cell": 0.8624711632728577,
+        "edge_recall_within_one_cell": 0.4668877422809601,
+        "mean_sigma_m": 0.04460151121020317,
+        "observed_mean_sigma_m": 0.027194125577807426,
+        "unknown_mean_sigma_m": 0.05705076828598976,
+        "coverage_1sigma": 0.7558491826057434,
+        "coverage_2sigma": 0.9331563115119934,
+        "low_sigma_fraction": 0.6409596800804138,
+        "low_sigma_mae_m": 0.01952579990029335,
+        "uncertainty_quartiles": [
+          {
+            "mean_sigma_m": 0.014626681804656982,
+            "rmse_m": 0.01455098856240511
+          },
+          {
+            "mean_sigma_m": 0.02983337640762329,
+            "rmse_m": 0.03461741656064987
+          },
+          {
+            "mean_sigma_m": 0.048975713551044464,
+            "rmse_m": 0.06019291654229164
+          },
+          {
+            "mean_sigma_m": 0.08497026562690735,
+            "rmse_m": 0.1018001064658165
+          }
+        ]
+      },
+      "training": {
+        "status": "completed",
+        "steps": 6000,
+        "best_step": 5500,
+        "train_frames": 2048,
+        "validation_frames": 512,
+        "test_frames": 512,
+        "checkpoint_reload_verified": true,
+        "test_clean_returns": {
+          "mae_m": 0.04255601763725281,
+          "rmse_m": 0.06988109648227692,
+          "observed_mae_m": 0.026723721995949745,
+          "unknown_mae_m": 0.053846634924411774,
+          "edge_mae_m": 0.08220560848712921,
+          "forward_strip_mae_m": 0.033369280397892,
+          "forward_strip_observed_fraction": 0.8001627922058105,
+          "observed_fraction": 0.41627606749534607,
+          "edge_precision_within_one_cell": 0.8552382588386536,
+          "edge_recall_within_one_cell": 0.47731661796569824,
+          "mean_sigma_m": 0.048071444034576416,
+          "observed_mean_sigma_m": 0.02849196270108223,
+          "unknown_mean_sigma_m": 0.06203432008624077,
+          "coverage_1sigma": 0.639893651008606,
+          "coverage_2sigma": 0.8878886103630066,
+          "low_sigma_fraction": 0.5957815051078796,
+          "low_sigma_mae_m": 0.023800859227776527,
+          "uncertainty_quartiles": [
+            {
+              "mean_sigma_m": 0.015326225198805332,
+              "rmse_m": 0.022542374208569527
+            },
+            {
+              "mean_sigma_m": 0.03190029785037041,
+              "rmse_m": 0.035301994532346725
+            },
+            {
+              "mean_sigma_m": 0.05331190675497055,
+              "rmse_m": 0.06573538482189178
+            },
+            {
+              "mean_sigma_m": 0.09174733608961105,
+              "rmse_m": 0.11600837111473083
+            }
+          ]
+        },
+        "test_clean_observed_mae_m": 0.007124643307179213,
+        "nearest_observed_baseline_test": {
+          "mae_m": 0.04684312269091606,
+          "rmse_m": 0.09053421020507812,
+          "observed_mae_m": 0.02521015703678131,
+          "unknown_mae_m": 0.062314387410879135,
+          "edge_mae_m": 0.10413632541894913,
+          "forward_strip_mae_m": 0.036674194037914276,
+          "forward_strip_observed_fraction": 0.7937500476837158,
+          "observed_fraction": 0.41696780920028687,
+          "edge_precision_within_one_cell": 0.7167384028434753,
+          "edge_recall_within_one_cell": 0.6328608393669128
+        }
+      }
+    }
+  },
+  "preview_proposal": "side",
+  "count_columns": [
+    "terrain_returns",
+    "self_occluded_rays",
+    "nonself_returns",
+    "noisy_map_returns",
+    "observed_cells"
+  ],
+  "limits": [
+    "New mount requires physical repositioning; not an extrinsic-only repair",
+    "Static synthetic returns; real calibration/fit/strength not qualified"
+  ]
+}

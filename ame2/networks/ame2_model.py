@@ -24,6 +24,8 @@ NOT implemented (training infrastructure, not network architecture):
   - PPO runner, terrain curriculum, Isaac Lab env wrappers
 """
 
+import math
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -62,8 +64,8 @@ class PolicyConfig:
     # Map dimensions (stated)
     map_h: int = 14           # stated: ANYmal-D policy map height
     map_w: int = 36           # stated: ANYmal-D policy map width
-    d_map_teacher: int = 3    # stated: elevation + 2 surface normals (nx, ny)
-    d_map_student: int = 4    # stated: teacher channels + uncertainty
+    d_map_teacher: int = 3    # metric x, y, z coordinates
+    d_map_student: int = 4    # metric x, y, z plus height variance
 
     # AME-2 encoder internals
     # d_local=64: confirmed from AME-1 (He et al. 2025 [15]) Sec."Training": "d=64 for the MHA dimension"
@@ -166,6 +168,8 @@ class MappingNet(nn.Module):
     Loss: β-NLL (β=0.5, eq.9), sample-weighted by terrain total variation (eq.10).
     """
 
+    MIN_VARIANCE = 1e-6  # Numerical floor in m^2, not a calibrated sensor model.
+
     def __init__(self, cfg: MappingConfig = MappingConfig()):
         super().__init__()
         self.cfg = cfg
@@ -202,7 +206,7 @@ class MappingNet(nn.Module):
         feat   = self.dec(torch.cat([up, skip], dim=1))           # (B, 16, H, W)
 
         raw_elev = self.head_elev(feat)                           # (B, 1, H, W)
-        log_var  = self.head_unc(feat)                            # (B, 1, H, W)
+        log_var  = self.head_unc(feat).clamp_min(math.log(self.MIN_VARIANCE))
 
         # FIX: independent gate head → sigmoid → gated combination with input
         # Paper: "Estimation Output = Gating * Raw_Estimation + (1-Gating) * Input"
@@ -226,6 +230,9 @@ class MappingNet(nn.Module):
 
         tv_weights: (B,) per-sample weights from total variation (eq. 10).
         """
+        # Exact synthetic surfaces can drive the Gaussian variance to zero.
+        # Keep the same numerical floor for standalone loss callers and forward.
+        log_var = log_var.clamp_min(math.log(MappingNet.MIN_VARIANCE))
         var = torch.exp(log_var)
         nll = log_var / 2.0 + (target - pred_elev) ** 2 / (2.0 * var)
         # sg[var^β] = sg[std] when β=0.5
@@ -285,7 +292,7 @@ class WTAMapFusion(nn.Module):
     When multiple local cells project to the same global cell in a single step,
     the one with the minimum variance wins (sort-by-descending-var + scatter).
 
-    Output channels: [elevation, normal_x, normal_y, variance]  (d_map_student=4)
+    Output channels: [x, y, z, variance]  (d_map_student=4)
     """
 
     INF_VAR: float = 1e4   # sentinel for unobserved cells
@@ -346,8 +353,8 @@ class WTAMapFusion(nn.Module):
             self.global_elev.zero_()
             self.global_var.fill_(self.INF_VAR)
         else:
-            self.global_elev[batch_idx].zero_()
-            self.global_var[batch_idx].fill_(self.INF_VAR)
+            self.global_elev[batch_idx] = 0
+            self.global_var[batch_idx] = self.INF_VAR
 
     # ------------------------------------------------------------------
     # Coordinate helpers
@@ -492,7 +499,7 @@ class WTAMapFusion(nn.Module):
         Args:
             poses: (B, 3)  [x, y, yaw]
         Returns: (B, 4, policy_h, policy_w)
-            Channels: [elevation, normal_x, normal_y, variance]  ← d_map_student=4
+            Channels: [x, y, z, variance]. Heights follow the input datum.
         """
         B     = poses.shape[0]
         pts   = self._policy_pts.unsqueeze(0).expand(B, -1, -1)   # (B, M, 2)
@@ -507,10 +514,8 @@ class WTAMapFusion(nn.Module):
 
         elev_c  = sampled[:, 0:1]                                    # (B, 1, Ph, Pw)
         var_c   = sampled[:, 1:2]
-        normals = self._surface_normals(elev_c, self.global_res)     # (B, 2, Ph, Pw)
-
-        # [elev, n_x, n_y, var] matches teacher layout (3 ch) + uncertainty (1 ch)
-        return torch.cat([elev_c, normals, var_c], dim=1)            # (B, 4, Ph, Pw)
+        xy = self._policy_pts.T.reshape(1, 2, self.policy_h, self.policy_w).expand(B, -1, -1, -1)
+        return torch.cat([xy, elev_c, var_c], dim=1)
 
 
 # ---------------------------------------------------------------------------
